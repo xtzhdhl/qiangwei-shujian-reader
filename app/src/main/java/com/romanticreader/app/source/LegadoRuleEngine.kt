@@ -7,6 +7,12 @@ import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
 import org.jsoup.nodes.Node
 import org.jsoup.nodes.TextNode
+import org.mozilla.javascript.Context
+import org.mozilla.javascript.Function
+import org.mozilla.javascript.Scriptable
+import org.mozilla.javascript.ScriptableObject
+import org.mozilla.javascript.NativeArray
+import org.mozilla.javascript.ClassShutter
 import org.jsoup.nodes.Attribute
 import java.net.HttpURLConnection
 import java.net.URI
@@ -274,11 +280,52 @@ class LegadoRuleEngine(private val cookieJar: PersistentCookieJar? = null) {
         }
     }
 
+    private fun executeJavaScript(rule: String, input: String, data: Any? = null): Any? {
+        val script = rule.trim().removePrefix("@js:").trim()
+        require(script.isNotBlank()) { "JavaScript 规则为空" }
+        val cx = Context.enter()
+        try {
+            cx.optimizationLevel = -1
+            cx.classShutter = object : ClassShutter {
+                override fun visibleToScripts(className: String): Boolean = false
+            }
+            val scope = cx.initStandardObjects()
+            ScriptableObject.putProperty(scope, "input", input)
+            ScriptableObject.putProperty(scope, "data", Context.javaToJS(data ?: input, scope))
+            ScriptableObject.putProperty(scope, "result", input)
+            val expression = if (script.startsWith("return ") || script.startsWith("return\\n")) {
+                "(function(input,data,result){ " + script + " })"
+            } else script
+            val evaluated = cx.evaluateString(scope, expression, "book-source-rule", 1, null)
+            return if (evaluated is Function) {
+                evaluated.call(cx, scope, scope, arrayOf(input, data ?: input, input))
+            } else evaluated
+        } finally {
+            Context.exit()
+        }
+    }
+
+    private fun javascriptValues(value: Any?): List<Any> = when (value) {
+        null, org.mozilla.javascript.Undefined.instance -> emptyList()
+        is NativeArray -> (0 until value.length.toInt()).mapNotNull { index ->
+            val item = value.get(index, value)
+            if (item == null || item === org.mozilla.javascript.Undefined.instance) null else item
+        }
+        is Iterable<*> -> value.filterNotNull()
+        else -> listOf(value)
+    }
+
+    private fun javascriptText(value: Any?): String = when (value) {
+        null, org.mozilla.javascript.Undefined.instance -> ""
+        is NativeArray -> javascriptValues(value).joinToString("\\n") { Context.toString(it) }
+        else -> Context.toString(value)
+    }
+
     private fun selectNodes(input: String, rule: String): List<Any> {
         val trimmed = rule.trim()
         if (trimmed.isEmpty()) return emptyList()
-        if (trimmed.startsWith("@js:", true) || trimmed.contains("@js:")) {
-            throw IllegalArgumentException("该规则包含 JavaScript；当前版本暂不执行 JS 书源脚本")
+        if (trimmed.startsWith("@js:", true)) {
+            return javascriptValues(executeJavaScript(trimmed, input)).map { javascriptText(it) }
         }
         if (trimmed.startsWith("@regex:", true) || trimmed.startsWith(":")) {
             val pattern = if (trimmed.startsWith("@regex:", true)) trimmed.substringAfter(":") else trimmed.removePrefix(":")
@@ -362,8 +409,8 @@ class LegadoRuleEngine(private val cookieJar: PersistentCookieJar? = null) {
     private fun value(input: String, rule: String, context: Any?, baseUrl: String): String {
         var r = rule.trim()
         if (r.isBlank()) return ""
-        if (r.startsWith("@js:", true) || r.contains("@js:")) {
-            throw IllegalArgumentException("该规则包含 JavaScript；当前版本暂不执行 JS 书源脚本")
+        if (r.startsWith("@js:", true)) {
+            return javascriptText(executeJavaScript(r, input, context))
         }
         val cleanStart = r.indexOf("##")
         val baseRule = if (cleanStart >= 0) r.substring(0, cleanStart).trim() else r
