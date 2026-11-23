@@ -393,6 +393,7 @@ private fun DiscoverScreen(modifier: Modifier, onSources: () -> Unit, onImport: 
     }
 }
 
+@Composable
 private fun SourcesScreen(modifier: Modifier, sources: List<com.romanticreader.app.data.BookSource>, subscriptions: List<com.romanticreader.app.data.BookSourceSubscription>, onImport: () -> Unit, onAddSubscription: (String) -> Unit, onRefreshSubscription: (String) -> Unit, onRemoveSubscription: (String) -> Unit, onToggle: (com.romanticreader.app.data.BookSource, Boolean) -> Unit, onDelete: (com.romanticreader.app.data.BookSource) -> Unit, onBack: () -> Unit) {
     var subscriptionUrl by remember { mutableStateOf("") }
     LazyColumn(modifier.fillMaxSize(), contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
