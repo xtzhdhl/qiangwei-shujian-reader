@@ -164,6 +164,7 @@ fun RemoteBookBrowser(repository: BookSourceRepository, onBack: () -> Unit, onSa
                         TextButton(onClick = {
                             val finalUrl = verifyWebUrl.ifBlank { startUrl }
                             val cookieManager = CookieManager.getInstance()
+                            cookieManager.flush()
                             val cookieHeader = cookieManager.getCookie(finalUrl).orEmpty()
                             cookieJar.importCookieManagerCookies(finalUrl, cookieHeader)
                             verifyStatus = if (cookieHeader.isNotBlank()) "已同步网页 Cookie，正在检测书源…" else "未获取到 Cookie，仍将尝试检测…"
