@@ -34,7 +34,7 @@ private val SourceWhite = Color(0xFFFFFDFB)
 private val SourceLine = Color(0xFFEED9D4)
 
 @Composable
-fun RemoteBookBrowser(repository: BookSourceRepository, onBack: () -> Unit) {
+fun RemoteBookBrowser(repository: BookSourceRepository, onBack: () -> Unit, onSaved: () -> Unit = {}) {
     val context = LocalContext.current
     val cookieJar = remember { PersistentCookieJar(context) }
     val engine = remember(cookieJar) { LegadoRuleEngine(cookieJar) }
@@ -207,6 +207,7 @@ fun RemoteBookBrowser(repository: BookSourceRepository, onBack: () -> Unit) {
                                     tocUrl = book.tocUrl, kind = book.kind, lastChapter = book.lastChapter
                                 ))
                                 message = if (saved) "已收藏到书架 🌹" else "这本书已经在书架啦"
+                                onSaved()
                             }, modifier = Modifier.fillMaxWidth()) {
                                 Text(if (repository.isOnlineBookSaved(book.sourceUrl, book.bookUrl)) "已收藏" else "收藏到书架")
                             }
