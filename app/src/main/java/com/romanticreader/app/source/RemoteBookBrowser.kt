@@ -122,6 +122,27 @@ fun RemoteBookBrowser(repository: BookSourceRepository, onBack: () -> Unit) {
                 "results" -> {
                     Text(message, color = SourceMuted, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 18.dp, vertical = 8.dp))
                     LazyColumn(contentPadding = PaddingValues(14.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
+                        item {
+                            OutlinedButton(onClick = {
+                                if (loading) return@OutlinedButton
+                                val next = searchPage + 1
+                                scope.launch {
+                                    loading = true
+                                    val more = withContext(Dispatchers.IO) {
+                                        val list = mutableListOf<SourceBookHit>()
+                                        repository.getSources().filter { it.enabled }.forEach { src ->
+                                            val json = repository.getRawSource(src.url) ?: return@forEach
+                                            runCatching { engine.search(json, query.trim(), next) }.onSuccess { list += it }
+                                        }
+                                        list.distinctBy { it.bookUrl }
+                                    }
+                                    hits = (hits + more).distinctBy { it.bookUrl }
+                                    searchPage = next
+                                    message = if (more.isEmpty()) "第 " + next + " 页没有新结果" else "已加载第 " + next + " 页，新增 " + more.size + " 个结果"
+                                    loading = false
+                                }
+                            }, modifier = Modifier.fillMaxWidth(), enabled = !loading) { Text("加载下一页（第 " + (searchPage + 1) + " 页）") }
+                        }
                         items(hits) { hit ->
                             Surface(shape = RoundedCornerShape(18.dp), color = SourceWhite, border = androidx.compose.foundation.BorderStroke(1.dp, SourceLine), modifier = Modifier.fillMaxWidth().clickable {
                                 scope.launch {
