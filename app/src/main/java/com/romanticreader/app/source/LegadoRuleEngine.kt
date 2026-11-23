@@ -57,6 +57,19 @@ class LegadoRuleEngine(private val cookieJar: PersistentCookieJar? = null) {
 
     private data class PageData(val text: String, val finalUrl: String)
 
+    fun debugRule(sample: String, rule: String): String {
+        val normalized = rule.trim()
+        if (normalized.isBlank()) return "规则为空"
+        return runCatching {
+            val nodes = selectNodes(sample, normalized)
+            val values = nodes.take(30).mapIndexed { index, node ->
+                val value = if (node is String) node else stringifyNode(node, "text")
+                (index + 1).toString() + ". " + value.take(500)
+            }
+            "规则类型：匹配规则\n匹配数量：${nodes.size}\n\n" + values.joinToString("\n")
+        }.getOrElse { "执行失败：${it.message ?: it.javaClass.simpleName}" }
+    }
+
     fun search(source: JSONObject, keyword: String, page: Int = 1): List<SourceBookHit> {
         val searchRules = ruleObject(source, "ruleSearch")
         val searchTemplate = source.optString("searchUrl").ifBlank { searchRules.optString("url") }
