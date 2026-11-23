@@ -293,7 +293,7 @@ class LegadoRuleEngine(private val cookieJar: PersistentCookieJar? = null) {
             ScriptableObject.putProperty(scope, "input", input)
             ScriptableObject.putProperty(scope, "data", Context.javaToJS(data ?: input, scope))
             ScriptableObject.putProperty(scope, "result", input)
-            val expression = if (script.startsWith("return ") || script.startsWith("return\\n")) {
+            val expression = if (script.startsWith("return ") || script.startsWith("return\n")) {
                 "(function(input,data,result){ " + script + " })"
             } else script
             val evaluated = cx.evaluateString(scope, expression, "book-source-rule", 1, null)
@@ -317,7 +317,7 @@ class LegadoRuleEngine(private val cookieJar: PersistentCookieJar? = null) {
 
     private fun javascriptText(value: Any?): String = when (value) {
         null, org.mozilla.javascript.Undefined.instance -> ""
-        is NativeArray -> javascriptValues(value).joinToString("\\n") { Context.toString(it) }
+        is NativeArray -> javascriptValues(value).joinToString("\n") { Context.toString(it) }
         else -> Context.toString(value)
     }
 
