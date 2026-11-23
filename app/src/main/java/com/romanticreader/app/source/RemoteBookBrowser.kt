@@ -39,7 +39,7 @@ private val SourceWhite = Color(0xFFFFFDFB)
 private val SourceLine = Color(0xFFEED9D4)
 
 @Composable
-fun RemoteBookBrowser(repository: BookSourceRepository, onBack: () -> Unit, onSaved: () -> Unit = {}, initialSavedBook: SavedOnlineBook? = null, initialQuery: String = "", initialAuthorMode: Boolean = false) {
+fun RemoteBookBrowser(repository: BookSourceRepository, onBack: () -> Unit, onSaved: () -> Unit = {}, initialSavedBook: SavedOnlineBook? = null, initialQuery: String = "", initialAuthorMode: Boolean = false, initialVerifySourceUrl: String = "") {
     val context = LocalContext.current
     val cookieJar = remember { PersistentCookieJar(context) }
     val engine = remember(cookieJar) { LegadoRuleEngine(cookieJar) }
@@ -62,13 +62,20 @@ fun RemoteBookBrowser(repository: BookSourceRepository, onBack: () -> Unit, onSa
     var debugRule by remember { mutableStateOf("@css:.book@text") }
     var debugSample by remember { mutableStateOf("<div class=\"book\">示例小说</div>") }
     var debugOutput by remember { mutableStateOf("输入规则与样例文本后点击测试。") }
-    var verifySourceUrl by remember { mutableStateOf("") }
+    var verifySourceUrl by remember { mutableStateOf(initialVerifySourceUrl) }
     var verifyWebUrl by remember { mutableStateOf("") }
     var verifyDialog by remember { mutableStateOf(false) }
     var verifyStatus by remember { mutableStateOf("准备验证") }
     var webViewRef by remember { mutableStateOf<WebView?>(null) }
 
     LaunchedEffect(initialQuery, initialAuthorMode) { query = initialQuery; authorMode = initialAuthorMode }
+    LaunchedEffect(initialVerifySourceUrl) {
+        if (initialVerifySourceUrl.isNotBlank()) {
+            verifySourceUrl = initialVerifySourceUrl
+            verifyWebUrl = initialVerifySourceUrl
+            verifyDialog = true
+        }
+    }
     LaunchedEffect(initialSavedBook?.bookUrl) {
         initialSavedBook?.let { saved ->
             detail = SourceBookDetail(
