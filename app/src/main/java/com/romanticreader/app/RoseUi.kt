@@ -437,11 +437,8 @@ private fun RoseReader(book: Novel, text: String, initialParagraph: Int, onBack:
 }
 
 private fun formatNovelText(raw: String): List<String> {
-    val cleaned = raw.replace("\\r\\n", "\\n").replace('\\r', '\\n')
-        .replace(Regex("[\\\\t ]{2,}"), " ")
-        .trim()
+    val cleaned = raw.replace("\r\n", "\n").replace('\r', '\n').trim()
     if (cleaned.isBlank()) return emptyList()
-    val paragraphs = cleaned.split(Regex("\\n{2,}"))
-        .flatMap { block -> block.split('\\n').map { it.trim() }.filter { it.isNotBlank() } }
-    return paragraphs
+    return cleaned.split(Regex("\n{2,}"))
+        .flatMap { block -> block.split('\n').map { it.trim() }.filter { it.isNotBlank() } }
 }
