@@ -73,6 +73,7 @@ private fun RoseLetterApp(context: Context) {
     var toast by remember { mutableStateOf("") }
     var sourcePage by remember { mutableStateOf(false) }
     var remoteReaderPage by remember { mutableStateOf(false) }
+    var selectedOnlineBook by remember { mutableStateOf<com.romanticreader.app.data.SavedOnlineBook?>(null) }
     var settingsPage by remember { mutableStateOf(false) }
 
     val importTxt = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
@@ -149,9 +150,9 @@ private fun RoseLetterApp(context: Context) {
                         }
                     }, onRemoveSubscription = { url -> sources.removeSubscription(url); subscriptions = sources.getSubscriptions() }, onToggle = { s, enabled -> sources.setEnabled(s.url, enabled); sourceList = sources.getSources() }, onDelete = { s -> sources.delete(s.url); sourceList = sources.getSources() }, onBack = { sourcePage = false })
                     settingsPage -> SettingsScreen(Modifier.padding(padding), books.size, sourceList.size, updateStatus, onSources = { sourcePage = true }, onCheckUpdate = { sourceScope.launch { updateStatus = "正在检查更新…"; val result = withContext(Dispatchers.IO) { runCatching { AppUpdater.check(BuildConfig.VERSION_NAME) } }; pendingUpdate = result.getOrNull(); updateStatus = result.fold({ if (it == null) "当前已是最新版本" else "发现新版本 ${it.version}" }, { "检查失败：${it.message}" }) } }, onBack = { settingsPage = false })
-                    remoteReaderPage -> RemoteBookBrowser(sources, onBack = { remoteReaderPage = false }, onSaved = { onlineBooks = sources.getOnlineBooks() })
+                    remoteReaderPage -> RemoteBookBrowser(sources, onBack = { remoteReaderPage = false; selectedOnlineBook = null }, onSaved = { onlineBooks = sources.getOnlineBooks() }, initialSavedBook = selectedOnlineBook)
                     tab == AppTab.Home -> HomeScreen(Modifier.padding(padding), books, onImport = { importTxt.launch(arrayOf("text/plain", "text/*")) }, onOpen = { book -> readerText = library.readText(book); activeBook = book }, onShelf = { tab = AppTab.Shelf }, onSources = { sourcePage = true })
-                    tab == AppTab.Shelf -> ShelfScreen(Modifier.padding(padding), books, onlineBooks, onImport = { importTxt.launch(arrayOf("text/plain", "text/*")) }, onOpen = { book -> readerText = library.readText(book); activeBook = book }, onDelete = { book -> library.deleteBook(book.id); books = library.getBooks() }, onRemoveOnline = { book -> sources.removeOnlineBook(book.sourceUrl, book.bookUrl); onlineBooks = sources.getOnlineBooks() })
+                    tab == AppTab.Shelf -> ShelfScreen(Modifier.padding(padding), books, onlineBooks, onImport = { importTxt.launch(arrayOf("text/plain", "text/*")) }, onOpen = { book -> readerText = library.readText(book); activeBook = book }, onDelete = { book -> library.deleteBook(book.id); books = library.getBooks() }, onRemoveOnline = { book -> sources.removeOnlineBook(book.sourceUrl, book.bookUrl); onlineBooks = sources.getOnlineBooks() }, onOpenOnline = { book -> selectedOnlineBook = book; remoteReaderPage = true })
                     tab == AppTab.Discover -> DiscoverScreen(Modifier.padding(padding), onSources = { sourcePage = true }, onImport = { importJson.launch(arrayOf("application/json", "text/*")) }, onRemoteSearch = { remoteReaderPage = true })
                     else -> SettingsScreen(Modifier.padding(padding), books.size, sourceList.size, updateStatus, onSources = { sourcePage = true }, onCheckUpdate = { sourceScope.launch { updateStatus = "正在检查更新…"; val result = withContext(Dispatchers.IO) { runCatching { AppUpdater.check("0.3.0") } }; pendingUpdate = result.getOrNull(); updateStatus = result.fold({ if (it == null) "当前已是最新版本" else "发现新版本 ${it.version}" }, { "检查失败：${it.message}" }) } }, onBack = {})
                 }
@@ -266,12 +267,12 @@ private fun HomeQuick(title: String, icon: androidx.compose.ui.graphics.vector.I
     }
 }
 @Composable
-private fun ShelfScreen(modifier: Modifier, books: List<Novel>, onlineBooks: List<com.romanticreader.app.data.SavedOnlineBook>, onImport: () -> Unit, onOpen: (Novel) -> Unit, onDelete: (Novel) -> Unit, onRemoveOnline: (com.romanticreader.app.data.SavedOnlineBook) -> Unit) {
+private fun ShelfScreen(modifier: Modifier, books: List<Novel>, onlineBooks: List<com.romanticreader.app.data.SavedOnlineBook>, onImport: () -> Unit, onOpen: (Novel) -> Unit, onDelete: (Novel) -> Unit, onRemoveOnline: (com.romanticreader.app.data.SavedOnlineBook) -> Unit, onOpenOnline: (com.romanticreader.app.data.SavedOnlineBook) -> Unit) {
     LazyColumn(modifier.fillMaxSize(), contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         if (onlineBooks.isNotEmpty()) {
             item { SectionTitle("在线收藏", "SAVED FROM SOURCES") }
             items(onlineBooks, key = { "online_" + it.sourceUrl + it.bookUrl }) { online ->
-                RoseCard(Modifier.fillMaxWidth()) {
+                RoseCard(Modifier.fillMaxWidth().clickable { onOpenOnline(online) }) {
                     Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
                         Box(Modifier.size(58.dp, 78.dp).clip(RoundedCornerShape(12.dp)).background(Brush.linearGradient(listOf(Color(0xFFEED7DF), Color(0xFFF8EDE5)))), contentAlignment = Alignment.Center) {
                             Icon(Icons.Rounded.MenuBook, null, tint = RoseDeep.copy(alpha = .65f), modifier = Modifier.size(30.dp))
