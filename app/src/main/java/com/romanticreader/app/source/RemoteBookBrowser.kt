@@ -92,7 +92,7 @@ fun RemoteBookBrowser(repository: BookSourceRepository, onBack: () -> Unit, onSa
                     title = { Text("书源规则调试器") },
                     text = {
                         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Text("可测试 CSS、XPath、JSONPath、正则和基础规则。JS 规则执行支持正在开发。", fontSize = 12.sp, color = SourceMuted)
+                            Text("可测试 CSS、XPath、JSONPath、正则和基础 JS 规则。", fontSize = 12.sp, color = SourceMuted)
                             OutlinedTextField(debugRule, { debugRule = it }, label = { Text("规则") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
                             OutlinedTextField(debugSample, { debugSample = it }, label = { Text("样例 HTML / JSON / 文本") }, modifier = Modifier.fillMaxWidth(), minLines = 4)
                             OutlinedButton(onClick = { debugOutput = engine.debugRule(debugSample, debugRule) }, modifier = Modifier.fillMaxWidth()) { Text("测试规则") }
@@ -157,7 +157,7 @@ fun RemoteBookBrowser(repository: BookSourceRepository, onBack: () -> Unit, onSa
                             }
                         }, enabled = !loading, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = SourceRose)) { Text(if (loading) "搜索中…" else "搜索小说") }
                         Text(message, color = SourceMuted, fontSize = 12.sp, lineHeight = 18.sp)
-                        Text("当前支持常见 CSS、XPath、JSONPath、正则清理与 GET/POST；复杂 JavaScript 书源暂不执行。", color = SourceMuted, fontSize = 11.sp, lineHeight = 17.sp)
+                        Text("当前支持 CSS、XPath、JSONPath、正则与基础 JavaScript 规则；JS 不开放 Java/系统访问，复杂 Legado 脚本仍可能不兼容。", color = SourceMuted, fontSize = 11.sp, lineHeight = 17.sp)
                     }
                 }
                 "results" -> {
