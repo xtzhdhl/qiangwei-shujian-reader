@@ -211,8 +211,8 @@ private fun HomeScreen(modifier: Modifier, books: List<Novel>, onImport: () -> U
 }
 
 @Composable
-private fun HomeQuick(title: String, icon: androidx.compose.ui.graphics.vector.ImageVector, detail: String, onClick: () -> Unit) {
-    RoseCard(Modifier.weight(1f).clickable(onClick = onClick)) {
+private fun HomeQuick(title: String, icon: androidx.compose.ui.graphics.vector.ImageVector, detail: String, modifier: Modifier, onClick: () -> Unit) {
+    RoseCard(modifier.clickable(onClick = onClick)) {
         Column(Modifier.fillMaxWidth().padding(vertical = 14.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(5.dp)) {
             Icon(icon, null, tint = RoseDeep, modifier = Modifier.size(24.dp))
             Text(title, color = RoseInk, fontSize = 12.sp)
@@ -220,7 +220,6 @@ private fun HomeQuick(title: String, icon: androidx.compose.ui.graphics.vector.I
         }
     }
 }
-
 @Composable
 private fun ShelfScreen(modifier: Modifier, books: List<Novel>, onImport: () -> Unit, onOpen: (Novel) -> Unit, onDelete: (Novel) -> Unit) {
     LazyColumn(modifier.fillMaxSize(), contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -436,17 +435,11 @@ private fun RoseReader(book: Novel, text: String, initialParagraph: Int, onBack:
 }
 
 private fun formatNovelText(raw: String): List<String> {
-    val cleaned = raw.replace("\r\n", "\n").replace('\r', '\n')
-        .replace(Regex("[\\t ]{2,}"), " ")
+    val cleaned = raw.replace("\\r\\n", "\\n").replace('\\r', '\\n')
+        .replace(Regex("[\\\\t ]{2,}"), " ")
         .trim()
     if (cleaned.isBlank()) return emptyList()
-    val chunks = cleaned.split(Regex("\n\\s*\u0000?\n+"))
-    val paragraphs = chunks.flatMap { chunk ->
-        chunk.split('\n').map { it.trim() }.filter { it.isNotBlank() }
-    }
-    return paragraphs.map { paragraph ->
-        val isChapter = paragraph.matches(Regex("^(第[0-9一二三四五六七八九十百千零〇两]+[章节回卷].{0,50}|正文|序章|楔子|尾声|番外.*)$"))
-        if (isChapter) "        $paragraph\n\n" else "　　$paragraph\n\n"
-    }
+    val paragraphs = cleaned.split(Regex("\\n{2,}"))
+        .flatMap { block -> block.split('\\n').map { it.trim() }.filter { it.isNotBlank() } }
+    return paragraphs
 }
-
