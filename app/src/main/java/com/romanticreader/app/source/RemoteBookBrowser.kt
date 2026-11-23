@@ -63,6 +63,36 @@ fun RemoteBookBrowser(repository: BookSourceRepository, onBack: () -> Unit) {
                     Text("ROSE LETTER · SOURCE READER", color = SourceMuted, fontSize = 9.sp)
                 }
             }
+            if (cookieDialog) {
+                val enabledSources = repository.getSources().filter { it.enabled }
+                AlertDialog(
+                    onDismissRequest = { cookieDialog = false },
+                    title = { Text("书源登录态 / Cookie") },
+                    text = {
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text("可粘贴从浏览器登录后复制的 Cookie。内容仅保存在本机。", fontSize = 12.sp, color = SourceMuted)
+                            if (cookieSourceUrl.isBlank() && enabledSources.isNotEmpty()) cookieSourceUrl = enabledSources.first().url
+                            enabledSources.forEach { source ->
+                                Row(Modifier.fillMaxWidth().clickable { cookieSourceUrl = source.url }, verticalAlignment = Alignment.CenterVertically) {
+                                    RadioButton(selected = cookieSourceUrl == source.url, onClick = { cookieSourceUrl = source.url })
+                                    Text(source.name, fontSize = 12.sp)
+                                }
+                            }
+                            OutlinedTextField(cookieText, { cookieText = it }, label = { Text("Cookie 字符串") }, modifier = Modifier.fillMaxWidth(), minLines = 2)
+                        }
+                    },
+                    confirmButton = { TextButton(onClick = {
+                        cookieSourceUrl.takeIf { it.isNotBlank() }?.let { cookieJar.setManualCookieHeader(it, cookieText) }
+                        cookieDialog = false
+                        message = "Cookie 已保存到本机"
+                    }) { Text("保存") } },
+                    dismissButton = { TextButton(onClick = {
+                        cookieSourceUrl.takeIf { it.isNotBlank() }?.let { cookieJar.clearForUrl(it) }
+                        cookieText = ""
+                        message = "已清除所选书源的 Cookie"
+                    }) { Text("清除") } }
+                )
+            }
             when(stage) {
                 "search" -> {
                     Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
