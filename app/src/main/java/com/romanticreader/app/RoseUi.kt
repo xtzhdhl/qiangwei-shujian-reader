@@ -462,10 +462,14 @@ private fun RoseReader(book: Novel, text: String, initialParagraph: Int, onBack:
     var fontSize by remember { mutableFloatStateOf(19f) }
     var lineSpace by remember { mutableFloatStateOf(1.8f) }
     var dark by remember { mutableStateOf(false) }
+    var fontMode by remember { mutableIntStateOf(0) }
+    var paperMode by remember { mutableIntStateOf(0) }
+    var pageMargin by remember { mutableFloatStateOf(24f) }
     var controls by remember { mutableStateOf(false) }
     val paragraphs = remember(text) { formatNovelText(text) }
-    val background = if (dark) Color(0xFF282426) else Color(0xFFF8F2E9)
+    val background = if (dark) Color(0xFF282426) else listOf(Color(0xFFF8F2E9), Color(0xFFFFF8F0), Color(0xFFF0E9DC), Color(0xFFE8E1D3))[paperMode]
     val foreground = if (dark) Color(0xFFE8DCD2) else Color(0xFF493C3B)
+    val readingFont = when(fontMode) { 1 -> FontFamily.Serif; 2 -> FontFamily.Monospace; else -> FontFamily.SansSerif }
     val listState = rememberLazyListState(initialFirstVisibleItemIndex = initialParagraph.coerceIn(0, (paragraphs.size - 1).coerceAtLeast(0)))
     val scope = rememberCoroutineScope()
     val safePage = listState.firstVisibleItemIndex.coerceIn(0, (paragraphs.size - 1).coerceAtLeast(0))
@@ -480,11 +484,11 @@ private fun RoseReader(book: Novel, text: String, initialParagraph: Int, onBack:
         }
         if (paragraphs.isNotEmpty()) {
             Text("第 ${safePage + 1} / ${paragraphs.size} 段", color = RoseMuted, fontSize = 10.sp, modifier = Modifier.padding(start = 26.dp, top = 6.dp, bottom = 10.dp))
-            LazyColumn(state = listState, modifier = Modifier.weight(1f).fillMaxWidth(), contentPadding = PaddingValues(horizontal = 26.dp, vertical = 16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            LazyColumn(state = listState, modifier = Modifier.weight(1f).fillMaxWidth(), contentPadding = PaddingValues(horizontal = pageMargin.dp, vertical = 16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                 items(paragraphs.indices.toList()) { index ->
                     val paragraph = paragraphs[index]
                     val chapter = paragraph.matches(Regex("^(第[0-9一二三四五六七八九十百千零〇两]+[章节回卷].{0,50}|正文|序章|楔子|尾声|番外.*)$"))
-                    Text(paragraph, color = foreground, fontSize = if (chapter) (fontSize + 2).sp else fontSize.sp, fontWeight = if (chapter) FontWeight.SemiBold else FontWeight.Normal, lineHeight = (fontSize * lineSpace).sp, letterSpacing = .3.sp, modifier = if (chapter) Modifier.fillMaxWidth().padding(vertical = 10.dp) else Modifier.fillMaxWidth())
+                    Text(paragraph, color = foreground, fontSize = if (chapter) (fontSize + 2).sp else fontSize.sp, fontWeight = if (chapter) FontWeight.SemiBold else FontWeight.Normal, lineHeight = (fontSize * lineSpace).sp, letterSpacing = .3.sp, fontFamily = readingFont, modifier = if (chapter) Modifier.fillMaxWidth().padding(vertical = 10.dp) else Modifier.fillMaxWidth())
                 }
             }
             Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -503,6 +507,18 @@ private fun RoseReader(book: Novel, text: String, initialParagraph: Int, onBack:
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text("行距", color = foreground, fontSize = 12.sp)
                         Slider(lineSpace, { lineSpace = it }, valueRange = 1.4f..2.2f, modifier = Modifier.weight(1f), colors = SliderDefaults.colors(thumbColor = RoseDeep, activeTrackColor = RoseDeep))
+                    }
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text("字体", color = foreground, fontSize = 12.sp)
+                        TextButton(onClick = { fontMode = (fontMode + 1) % 3 }) { Text(listOf("无衬线", "衬线", "等宽")[fontMode], color = RoseDeep) }
+                    }
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text("纸张", color = foreground, fontSize = 12.sp)
+                        TextButton(onClick = { paperMode = (paperMode + 1) % 4 }) { Text(listOf("米白", "奶油", "暖灰", "复古")[paperMode], color = RoseDeep) }
+                    }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("页边距", color = foreground, fontSize = 12.sp)
+                        Slider(pageMargin, { pageMargin = it }, valueRange = 16f..42f, modifier = Modifier.weight(1f), colors = SliderDefaults.colors(thumbColor = RoseDeep, activeTrackColor = RoseDeep))
                     }
                 }
             }
