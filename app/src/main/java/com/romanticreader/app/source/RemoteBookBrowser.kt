@@ -10,6 +10,11 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.MenuBook
+import androidx.compose.material.icons.rounded.Refresh
+import android.webkit.CookieManager
+import android.webkit.WebView
+import android.webkit.WebViewClient
+import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.platform.LocalContext
@@ -57,6 +62,11 @@ fun RemoteBookBrowser(repository: BookSourceRepository, onBack: () -> Unit, onSa
     var debugRule by remember { mutableStateOf("@css:.book@text") }
     var debugSample by remember { mutableStateOf("<div class=\"book\">示例小说</div>") }
     var debugOutput by remember { mutableStateOf("输入规则与样例文本后点击测试。") }
+    var verifySourceUrl by remember { mutableStateOf("") }
+    var verifyWebUrl by remember { mutableStateOf("") }
+    var verifyDialog by remember { mutableStateOf(false) }
+    var verifyStatus by remember { mutableStateOf("准备验证") }
+    var webViewRef by remember { mutableStateOf<WebView?>(null) }
 
     LaunchedEffect(initialQuery, initialAuthorMode) { query = initialQuery; authorMode = initialAuthorMode }
     LaunchedEffect(initialSavedBook?.bookUrl) {
@@ -104,6 +114,86 @@ fun RemoteBookBrowser(repository: BookSourceRepository, onBack: () -> Unit, onSa
                     confirmButton = { TextButton(onClick = { debugDialog = false }) { Text("关闭") } }
                 )
             }
+            if (verifyDialog) {
+                val source = repository.getRawSource(verifySourceUrl, requireEnabled = false)
+                val startUrl = verifyWebUrl.ifBlank { source?.optString("loginUrl")?.takeIf { it.isNotBlank() } ?: verifySourceUrl }
+                AlertDialog(
+                    onDismissRequest = { verifyDialog = false; webViewRef = null },
+                    title = { Text("书源验证 · ${repository.getSources().firstOrNull { it.url == verifySourceUrl }?.name ?: verifySourceUrl}") },
+                    text = {
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text("在此网页中手动完成登录或人机验证。不会自动绕过验证码。完成后点击“同步并检测”。", color = SourceMuted, fontSize = 12.sp)
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                OutlinedButton(onClick = { webViewRef?.reload() }) { Icon(Icons.Rounded.Refresh, null); Text("刷新") }
+                                OutlinedButton(onClick = { webViewRef?.goBack() }, enabled = webViewRef?.canGoBack() == true) { Text("返回") }
+                                OutlinedButton(onClick = { webViewRef?.goForward() }, enabled = webViewRef?.canGoForward() == true) { Text("前进") }
+                            }
+                            AndroidView(
+                                modifier = Modifier.fillMaxWidth().height(390.dp),
+                                factory = { ctx ->
+                                    WebView(ctx).apply {
+                                        settings.javaScriptEnabled = true
+                                        settings.domStorageEnabled = true
+                                        settings.loadsImagesAutomatically = true
+                                        settings.userAgentString = "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/124 Mobile Safari/537.36"
+                                        CookieManager.getInstance().setAcceptCookie(true)
+                                        CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
+                                        webViewClient = object : WebViewClient() {
+                                            override fun onPageFinished(view: WebView, url: String) {
+                                                verifyWebUrl = url
+                                                verifyStatus = "网页已加载，请完成页面要求的操作"
+                                            }
+                                        }
+                                        webViewRef = this
+                                        loadUrl(startUrl)
+                                    }
+                                },
+                                update = { view -> if (view.url.isNullOrBlank()) view.loadUrl(startUrl) }
+                            )
+                            Text(verifyStatus, color = SourceMuted, fontSize = 11.sp)
+                        }
+                    },
+                    confirmButton = {
+                        TextButton(onClick = {
+                            val finalUrl = verifyWebUrl.ifBlank { startUrl }
+                            val cookieManager = CookieManager.getInstance()
+                            val cookieHeader = cookieManager.getCookie(finalUrl).orEmpty()
+                            cookieJar.importCookieManagerCookies(finalUrl, cookieHeader)
+                            verifyStatus = if (cookieHeader.isNotBlank()) "已同步网页 Cookie，正在检测书源…" else "未获取到 Cookie，仍将尝试检测…"
+                            scope.launch {
+                                loading = true
+                                val result = withContext(Dispatchers.IO) {
+                                    runCatching {
+                                        val json = repository.getRawSource(verifySourceUrl, requireEnabled = false) ?: error("找不到书源")
+                                        engine.search(json, "测试", 1)
+                                    }
+                                }
+                                result.onSuccess { found ->
+                                    val status = if (found.isNotEmpty()) "正常" else "可访问但无结果"
+                                    val msg = if (found.isNotEmpty()) "验证成功：测试搜索返回 ${found.size} 条结果" else "请求成功但规则未解析出书籍；请检查 searchUrl / ruleSearch"
+                                    repository.saveVerificationRecord(verifySourceUrl, status, msg)
+                                    verifyStatus = msg
+                                }.onFailure { error ->
+                                    val text = error.message ?: error.javaClass.simpleName
+                                    val status = when {
+                                        text.contains("captcha", true) || text.contains("verify", true) || text.contains("human", true) || text.contains("challenge", true) -> "需要验证"
+                                        text.contains("401") || text.contains("403") || text.contains("login", true) || text.contains("登录", true) -> "需要登录"
+                                        text.contains("timeout", true) || text.contains("timed out", true) -> "连接超时"
+                                        else -> "检测失败"
+                                    }
+                                    repository.saveVerificationRecord(verifySourceUrl, status, text)
+                                    verifyStatus = "$status：$text"
+                                }
+                                loading = false
+                                onSaved()
+                            }
+                        }) { Text("同步并检测") }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { verifyDialog = false; webViewRef = null }) { Text("关闭") }
+                    }
+                )
+            }
             if (cookieDialog) {
                 val enabledSources = repository.getSources().filter { it.enabled }
                 AlertDialog(
@@ -111,7 +201,7 @@ fun RemoteBookBrowser(repository: BookSourceRepository, onBack: () -> Unit, onSa
                     title = { Text("书源登录态 / Cookie") },
                     text = {
                         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Text("可粘贴从浏览器登录后复制的 Cookie。内容仅保存在本机。", fontSize = 12.sp, color = SourceMuted)
+                            Text("Cookie 会保存在本机。验证页面完成登录/人机验证后可同步；手动粘贴仍可用。", fontSize = 12.sp, color = SourceMuted)
                             if (cookieSourceUrl.isBlank() && enabledSources.isNotEmpty()) cookieSourceUrl = enabledSources.first().url
                             enabledSources.forEach { source ->
                                 Row(Modifier.fillMaxWidth().clickable { cookieSourceUrl = source.url }, verticalAlignment = Alignment.CenterVertically) {
@@ -140,6 +230,11 @@ fun RemoteBookBrowser(repository: BookSourceRepository, onBack: () -> Unit, onSa
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) { FilterChip(selected = !authorMode, onClick = { authorMode = false }, label = { Text("书名") }); FilterChip(selected = authorMode, onClick = { authorMode = true }, label = { Text("作者") }) }
                         OutlinedTextField(query, { query = it }, modifier = Modifier.fillMaxWidth(), singleLine = true, label = { Text(if (authorMode) "作者名" else "小说名") }, trailingIcon = { Icon(Icons.Rounded.Search, null) })
                         OutlinedButton(onClick = { cookieDialog = true }, modifier = Modifier.fillMaxWidth()) { Text("登录态 / Cookie 管理") }
+                        OutlinedButton(onClick = {
+                            val src = repository.getSources().firstOrNull { it.enabled }
+                            if (src != null) { verifySourceUrl = src.url; verifyWebUrl = src.url; verifyDialog = true }
+                            else message = "请先添加并启用一个书源"
+                        }, modifier = Modifier.fillMaxWidth()) { Text("内置网页验证 / 同步 Cookie") }
                         OutlinedButton(onClick = { debugDialog = true }, modifier = Modifier.fillMaxWidth()) { Text("书源规则调试器") }
                         Button(onClick = {
                             if (query.isBlank()) { message = if (authorMode) "先输入作者名哦" else "先输入小说名哦"; return@Button }
