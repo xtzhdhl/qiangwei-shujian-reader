@@ -197,7 +197,7 @@ fun RemoteBookBrowser(repository: BookSourceRepository, onBack: () -> Unit, onSa
                                     }
                                     hits = (hits + (if (authorMode) more.first.filter { it.author.contains(query.trim(), ignoreCase = true) } else more.first)).distinctBy { it.bookUrl }
                                     searchPage = next
-                                    message = if (more.first.isEmpty()) "第 " + next + " 页没有新结果。 " + more.second.take(2).joinToString("；") else "已加载第 " + next + " 页，新增 " + more.first.size + " 个结果" + if (more.second.isNotEmpty()) "；部分书源失败：" + more.second.take(2).joinToString("；") else """
+                                    message = if (more.first.isEmpty()) "第 " + next + " 页没有新结果。 " + more.second.take(2).joinToString("；") else "已加载第 " + next + " 页，新增 " + more.first.size + " 个结果" + (if (more.second.isNotEmpty()) "；部分书源失败：" + more.second.take(2).joinToString("；") else "")
                                     loading = false
                                 }
                             }, modifier = Modifier.fillMaxWidth(), enabled = !loading) { Text("加载下一页（第 " + (searchPage + 1) + " 页）") }
