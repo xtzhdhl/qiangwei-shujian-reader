@@ -29,7 +29,8 @@ android {
     }
     buildTypes {
         getByName("release") {
-            if (System.getenv("RELEASE_KEYSTORE_FILE") != null) signingConfig = signingConfigs.getByName("release")
+            require(System.getenv("RELEASE_KEYSTORE_FILE") != null) { "Release builds require the permanent signing keystore and GitHub Actions secrets." }
+            signingConfig = signingConfigs.getByName("release")
             isMinifyEnabled = false
         }
     }
