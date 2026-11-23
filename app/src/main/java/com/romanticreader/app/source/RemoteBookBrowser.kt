@@ -136,6 +136,10 @@ fun RemoteBookBrowser(repository: BookSourceRepository, onBack: () -> Unit, onSa
                                 OutlinedButton(onClick = { webViewRef?.goBack() }, enabled = webViewRef?.canGoBack() == true) { Text("返回") }
                                 OutlinedButton(onClick = { webViewRef?.goForward() }, enabled = webViewRef?.canGoForward() == true) { Text("前进") }
                             }
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                OutlinedTextField(verifyWebUrl, { verifyWebUrl = it }, modifier = Modifier.weight(1f), singleLine = true, label = { Text("登录 / 验证网址") })
+                                TextButton(onClick = { verifyWebUrl.trim().takeIf { it.startsWith("http://") || it.startsWith("https://") }?.let { webViewRef?.loadUrl(it) } }) { Text("打开") }
+                            }
                             AndroidView(
                                 modifier = Modifier.fillMaxWidth().height(390.dp),
                                 factory = { ctx ->
