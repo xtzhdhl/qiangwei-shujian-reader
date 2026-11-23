@@ -5,6 +5,9 @@ import org.json.JSONObject
 import org.jsoup.Jsoup
 import org.jsoup.nodes.Document
 import org.jsoup.nodes.Element
+import org.jsoup.nodes.Node
+import org.jsoup.nodes.TextNode
+import org.jsoup.nodes.Attribute
 import java.net.HttpURLConnection
 import java.net.URI
 import java.net.URL
@@ -277,7 +280,7 @@ class LegadoRuleEngine {
         }
         if (trimmed.startsWith("@xpath:", true) || trimmed.startsWith("//") || trimmed.startsWith("(//")) {
             val xpath = if (trimmed.startsWith("@xpath:", true)) trimmed.substringAfter(":") else trimmed
-            return runCatching { document.selectXpath<Element>(xpath).toList() }.getOrDefault(emptyList())
+            return runCatching { document.selectXpath<Node>(xpath).toList() }.getOrDefault(emptyList())
         }
         return defaultSelect(document, trimmed)
     }
@@ -328,28 +331,30 @@ class LegadoRuleEngine {
         if (r.startsWith("@js:", true) || r.contains("@js:")) {
             throw IllegalArgumentException("该规则包含 JavaScript；当前版本暂不执行 JS 书源脚本")
         }
+        val cleanStart = r.indexOf("##")
+        val baseRule = if (cleanStart >= 0) r.substring(0, cleanStart).trim() else r
         val selected: List<Any> = when {
-            r.startsWith("@text:") -> listOf(r.removePrefix("@text:"))
-            r.startsWith("@json:", true) || r.startsWith("$.") || r.startsWith("$[") -> {
+            baseRule.startsWith("@text:") -> listOf(baseRule.removePrefix("@text:"))
+            baseRule.startsWith("@json:", true) || baseRule.startsWith("$.") || baseRule.startsWith("$[") -> {
                 val json = (context as? JSONObject) ?: (context as? JSONArray) ?: parseJsonIfPossible(input) ?: return ""
-                jsonPath(json, r.removePrefix("@json:"))
+                jsonPath(json, baseRule.removePrefix("@json:"))
             }
-            r.startsWith("@css:", true) -> {
-                val rest = r.removePrefix("@css:")
+            baseRule.startsWith("@css:", true) -> {
+                val rest = baseRule.removePrefix("@css:")
                 val split = rest.lastIndexOf('@')
                 val selector = if (split > 0) rest.substring(0, split) else rest
                 val doc = (context as? Document) ?: (context as? Element)?.ownerDocument() ?: Jsoup.parse(input, baseUrl)
                 runCatching { doc.select(selector).toList() }.getOrDefault(emptyList())
             }
-            r.startsWith("@xpath:", true) || r.startsWith("//") || r.startsWith("(//") -> {
-                val xpath = if (r.startsWith("@xpath:", true)) r.substringAfter(":") else r
+            baseRule.startsWith("@xpath:", true) || baseRule.startsWith("//") || baseRule.startsWith("(//") -> {
+                val xpath = if (baseRule.startsWith("@xpath:", true)) baseRule.substringAfter(":") else baseRule
                 val doc = (context as? Document) ?: (context as? Element)?.ownerDocument() ?: Jsoup.parse(input, baseUrl)
-                runCatching { doc.selectXpath<Element>(xpath).toList() }.getOrDefault(emptyList())
+                runCatching { doc.selectXpath<Node>(xpath).toList() }.getOrDefault(emptyList())
             }
             else -> {
-                if (context is Element) extractDefaultFromContext(context, r)
-                else if (context is JSONObject || context is JSONArray) jsonPath(context, r)
-                else selectNodes(input, r)
+                if (context is Element) extractDefaultFromContext(context, baseRule)
+                else if (context is JSONObject || context is JSONArray) jsonPath(context, baseRule)
+                else selectNodes(input, baseRule)
             }
         }
         var suffix = ""
@@ -388,6 +393,9 @@ class LegadoRuleEngine {
 
     private fun stringifyNode(node: Any, suffix: String): String {
         return when (node) {
+            is Attribute -> node.value
+            is TextNode -> node.text()
+            is Node -> node.outerHtml()
             is Element -> when (suffix) {
                 "href" -> node.absUrl("href").ifBlank { node.attr("href") }
                 "src" -> node.absUrl("src").ifBlank { node.attr("src") }
