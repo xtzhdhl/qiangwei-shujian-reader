@@ -33,6 +33,8 @@ import com.romanticreader.app.data.Novel
 import com.romanticreader.app.data.NovelRepository
 import java.io.File
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 private val RosePaper = Color(0xFFFFF9F5)
 private val RoseWhite = Color(0xFFFFFDFB)
@@ -60,6 +62,8 @@ private fun RoseLetterApp(context: Context) {
     var tab by remember { mutableStateOf(AppTab.Home) }
     var books by remember { mutableStateOf(library.getBooks()) }
     var sourceList by remember { mutableStateOf(sources.getSources()) }
+    var subscriptions by remember { mutableStateOf(sources.getSubscriptions()) }
+    val sourceScope = rememberCoroutineScope()
     var activeBook by remember { mutableStateOf<Novel?>(null) }
     var readerText by remember { mutableStateOf("") }
     var toast by remember { mutableStateOf("") }
@@ -124,7 +128,21 @@ private fun RoseLetterApp(context: Context) {
                 }
             ) { padding ->
                 when {
-                    sourcePage -> SourcesScreen(Modifier.padding(padding), sourceList, onImport = { importJson.launch(arrayOf("application/json", "text/*")) }, onToggle = { s, enabled -> sources.setEnabled(s.url, enabled); sourceList = sources.getSources() }, onDelete = { s -> sources.delete(s.url); sourceList = sources.getSources() }, onBack = { sourcePage = false })
+                    sourcePage -> SourcesScreen(Modifier.padding(padding), sourceList, subscriptions, onImport = { importJson.launch(arrayOf("application/json", "text/*")) }, onAddSubscription = { url ->
+                        sourceScope.launch {
+                            toast = "正在导入远程书源…"
+                            val result = withContext(Dispatchers.IO) { runCatching { sources.addSubscription(url) } }
+                            sourceList = sources.getSources(); subscriptions = sources.getSubscriptions()
+                            toast = result.fold({ "订阅导入完成，新增或更新 $it 个书源" }, { "订阅失败：${it.message ?: "网络错误"}" })
+                        }
+                    }, onRefreshSubscription = { url ->
+                        sourceScope.launch {
+                            toast = "正在刷新订阅…"
+                            val result = withContext(Dispatchers.IO) { runCatching { sources.syncSubscription(url) } }
+                            sourceList = sources.getSources(); subscriptions = sources.getSubscriptions()
+                            toast = result.fold({ "刷新完成，更新 $it 个书源" }, { "刷新失败：${it.message ?: "网络错误"}" })
+                        }
+                    }, onRemoveSubscription = { url -> sources.removeSubscription(url); subscriptions = sources.getSubscriptions() }, onToggle = { s, enabled -> sources.setEnabled(s.url, enabled); sourceList = sources.getSources() }, onDelete = { s -> sources.delete(s.url); sourceList = sources.getSources() }, onBack = { sourcePage = false })
                     settingsPage -> SettingsScreen(Modifier.padding(padding), books.size, sourceList.size, onSources = { sourcePage = true }, onBack = { settingsPage = false })
                     tab == AppTab.Home -> HomeScreen(Modifier.padding(padding), books, onImport = { importTxt.launch(arrayOf("text/plain", "text/*")) }, onOpen = { book -> readerText = library.readText(book); activeBook = book }, onShelf = { tab = AppTab.Shelf }, onSources = { sourcePage = true })
                     tab == AppTab.Shelf -> ShelfScreen(Modifier.padding(padding), books, onImport = { importTxt.launch(arrayOf("text/plain", "text/*")) }, onOpen = { book -> readerText = library.readText(book); activeBook = book }, onDelete = { book -> library.deleteBook(book.id); books = library.getBooks() })
@@ -317,7 +335,8 @@ private fun DiscoverScreen(modifier: Modifier, onSources: () -> Unit, onImport: 
 }
 
 @Composable
-private fun SourcesScreen(modifier: Modifier, sources: List<com.romanticreader.app.data.BookSource>, onImport: () -> Unit, onToggle: (com.romanticreader.app.data.BookSource, Boolean) -> Unit, onDelete: (com.romanticreader.app.data.BookSource) -> Unit, onBack: () -> Unit) {
+private fun SourcesScreen(modifier: Modifier, sources: List<com.romanticreader.app.data.BookSource>, subscriptions: List<com.romanticreader.app.data.BookSourceSubscription>, onImport: () -> Unit, onAddSubscription: (String) -> Unit, onRefreshSubscription: (String) -> Unit, onRemoveSubscription: (String) -> Unit, onToggle: (com.romanticreader.app.data.BookSource, Boolean) -> Unit, onDelete: (com.romanticreader.app.data.BookSource) -> Unit, onBack: () -> Unit) {
+    var subscriptionUrl by remember { mutableStateOf("") }
     LazyColumn(modifier.fillMaxSize(), contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item { RoseHeader("书源管理", "SOURCE GARDEN", trailing = { IconButton(onClick = onBack) { Icon(Icons.Rounded.Close, "关闭") } }) }
         item {
@@ -326,6 +345,32 @@ private fun SourcesScreen(modifier: Modifier, sources: List<com.romanticreader.a
                     Text("导入书源", fontSize = 18.sp, color = RoseInk)
                     Text("支持 JSON 数组或单个书源对象；同一书源网址会自动跳过重复项。", color = RoseMuted, fontSize = 12.sp, lineHeight = 18.sp)
                     Button(onClick = onImport, colors = ButtonDefaults.buttonColors(containerColor = RoseDeep)) { Icon(Icons.Rounded.Add, null); Text("选择 JSON 文件") }
+                }
+            }
+        }
+        item {
+            RoseCard(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("远程书源订阅", color = RoseInk, fontSize = 17.sp)
+                    Text("粘贴 Legado JSON 订阅链接，导入后可以一键刷新。", color = RoseMuted, fontSize = 12.sp)
+                    OutlinedTextField(subscriptionUrl, { subscriptionUrl = it }, modifier = Modifier.fillMaxWidth(), label = { Text("HTTPS 订阅链接") }, singleLine = true)
+                    Button(onClick = { if (subscriptionUrl.isNotBlank()) onAddSubscription(subscriptionUrl.trim()) }, colors = ButtonDefaults.buttonColors(containerColor = RoseDeep)) { Text("添加并导入订阅") }
+                }
+            }
+        }
+        if (subscriptions.isNotEmpty()) {
+            item { SectionTitle("我的订阅", "SUBSCRIPTIONS") }
+            items(subscriptions, key = { "sub:"+it.url }) { sub ->
+                RoseCard(Modifier.fillMaxWidth()) {
+                    Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                        Text(sub.name, color = RoseInk, fontWeight = FontWeight.Medium)
+                        Text(sub.url, color = RoseMuted, fontSize = 10.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                        Text("包含 ${sub.sourceCount} 个书源 · 最近更新：${if (sub.lastSyncAt == 0L) "尚未刷新" else java.text.SimpleDateFormat("MM-dd HH:mm", java.util.Locale.getDefault()).format(java.util.Date(sub.lastSyncAt))}", color = RoseMuted, fontSize = 10.sp)
+                        Row {
+                            TextButton(onClick = { onRefreshSubscription(sub.url) }) { Text("刷新订阅", color = RoseDeep) }
+                            TextButton(onClick = { onRemoveSubscription(sub.url) }) { Text("移除订阅", color = RoseMuted) }
+                        }
+                    }
                 }
             }
         }
