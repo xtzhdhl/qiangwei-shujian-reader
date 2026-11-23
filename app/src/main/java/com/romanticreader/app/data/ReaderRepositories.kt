@@ -19,11 +19,20 @@ data class Novel(
     val lastReadAt: Long = 0L
 )
 
+data class SourceVerificationRecord(
+    val status: String = "未检测",
+    val message: String = "尚未执行连接检测",
+    val checkedAt: Long = 0L
+)
+
 data class BookSource(
     val url: String,
     val name: String,
     val group: String,
-    val enabled: Boolean
+    val enabled: Boolean,
+    val verificationStatus: String = "未检测",
+    val verificationMessage: String = "尚未执行连接检测",
+    val lastVerifiedAt: Long = 0L
 )
 
 class NovelRepository(context: Context) {
@@ -227,23 +236,50 @@ class BookSourceRepository(context: Context) {
                 val item = array.optJSONObject(index) ?: return@mapNotNull null
                 val url = item.optString("bookSourceUrl")
                 if (url.isBlank()) return@mapNotNull null
+                val verification = getVerificationRecord(url)
                 BookSource(
                     url = url,
                     name = item.optString("bookSourceName").ifBlank { url },
                     group = item.optString("bookSourceGroup"),
-                    enabled = item.optBoolean("enabled", true)
+                    enabled = item.optBoolean("enabled", true),
+                    verificationStatus = verification.status,
+                    verificationMessage = verification.message,
+                    lastVerifiedAt = verification.checkedAt
                 )
             }
         }.getOrDefault(emptyList())
     }
 
-    fun getRawSource(sourceUrl: String): JSONObject? {
+    fun getRawSource(sourceUrl: String, requireEnabled: Boolean = true): JSONObject? {
         val array = runCatching { JSONArray(prefs.getString("sources", "[]") ?: "[]") }.getOrNull() ?: return null
         for (i in 0 until array.length()) {
             val item = array.optJSONObject(i) ?: continue
-            if (item.optString("bookSourceUrl") == sourceUrl && item.optBoolean("enabled", true)) return JSONObject(item.toString())
+            if (item.optString("bookSourceUrl") == sourceUrl &&
+                (!requireEnabled || item.optBoolean("enabled", true))
+            ) return JSONObject(item.toString())
         }
         return null
+    }
+
+    fun getVerificationRecord(sourceUrl: String): SourceVerificationRecord {
+        val all = runCatching { JSONObject(prefs.getString("source_verification", "{}") ?: "{}") }
+            .getOrDefault(JSONObject())
+        val item = all.optJSONObject(sourceUrl) ?: return SourceVerificationRecord()
+        return SourceVerificationRecord(
+            status = item.optString("status", "未检测"),
+            message = item.optString("message", "尚未执行连接检测"),
+            checkedAt = item.optLong("checkedAt", 0L)
+        )
+    }
+
+    fun saveVerificationRecord(sourceUrl: String, status: String, message: String) {
+        val all = runCatching { JSONObject(prefs.getString("source_verification", "{}") ?: "{}") }
+            .getOrDefault(JSONObject())
+        all.put(sourceUrl, JSONObject()
+            .put("status", status)
+            .put("message", message.take(1200))
+            .put("checkedAt", System.currentTimeMillis()))
+        prefs.edit().putString("source_verification", all.toString()).apply()
     }
 
     fun getSubscriptions(): List<BookSourceSubscription> {
@@ -461,5 +497,9 @@ class BookSourceRepository(context: Context) {
             if (item.optString("bookSourceUrl") != url) updated.put(item)
         }
         prefs.edit().putString("sources", updated.toString()).apply()
+        val verification = runCatching { JSONObject(prefs.getString("source_verification", "{}") ?: "{}") }
+            .getOrDefault(JSONObject())
+        verification.remove(url)
+        prefs.edit().putString("source_verification", verification.toString()).apply()
     }
 }
