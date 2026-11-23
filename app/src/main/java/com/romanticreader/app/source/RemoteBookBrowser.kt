@@ -72,7 +72,8 @@ fun RemoteBookBrowser(repository: BookSourceRepository, onBack: () -> Unit, onSa
     LaunchedEffect(initialVerifySourceUrl) {
         if (initialVerifySourceUrl.isNotBlank()) {
             verifySourceUrl = initialVerifySourceUrl
-            verifyWebUrl = initialVerifySourceUrl
+            val src = repository.getRawSource(initialVerifySourceUrl, requireEnabled = false)
+            verifyWebUrl = src?.optString("loginUrl")?.takeIf { it.isNotBlank() } ?: initialVerifySourceUrl
             verifyDialog = true
         }
     }
