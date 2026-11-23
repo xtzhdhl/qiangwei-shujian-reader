@@ -172,6 +172,15 @@ class BookSourceRepository(context: Context) {
         }.getOrDefault(emptyList())
     }
 
+    fun getRawSource(sourceUrl: String): JSONObject? {
+        val array = runCatching { JSONArray(prefs.getString("sources", "[]") ?: "[]") }.getOrNull() ?: return null
+        for (i in 0 until array.length()) {
+            val item = array.optJSONObject(i) ?: continue
+            if (item.optString("bookSourceUrl") == sourceUrl && item.optBoolean("enabled", true)) return JSONObject(item.toString())
+        }
+        return null
+    }
+
     fun getSubscriptions(): List<BookSourceSubscription> {
         val raw = prefs.getString("subscriptions", "[]") ?: "[]"
         return runCatching {
