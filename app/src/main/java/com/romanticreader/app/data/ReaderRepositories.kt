@@ -151,8 +151,73 @@ data class BookSourceSubscription(
     val lastSyncAt: Long
 )
 
+data class SavedOnlineBook(
+    val sourceUrl: String,
+    val bookUrl: String,
+    val title: String,
+    val author: String,
+    val intro: String = "",
+    val coverUrl: String = "",
+    val tocUrl: String = "",
+    val kind: String = "",
+    val lastChapter: String = "",
+    val savedAt: Long = System.currentTimeMillis()
+)
+
 class BookSourceRepository(context: Context) {
     private val prefs = context.applicationContext.getSharedPreferences("rose_letter_sources", Context.MODE_PRIVATE)
+
+    fun getOnlineBooks(): List<SavedOnlineBook> {
+        val raw = prefs.getString("online_books", "[]") ?: "[]"
+        return runCatching {
+            val array = JSONArray(raw)
+            (0 until array.length()).mapNotNull { i ->
+                val item = array.optJSONObject(i) ?: return@mapNotNull null
+                SavedOnlineBook(
+                    sourceUrl = item.optString("sourceUrl"),
+                    bookUrl = item.optString("bookUrl"),
+                    title = item.optString("title"),
+                    author = item.optString("author"),
+                    intro = item.optString("intro"),
+                    coverUrl = item.optString("coverUrl"),
+                    tocUrl = item.optString("tocUrl"),
+                    kind = item.optString("kind"),
+                    lastChapter = item.optString("lastChapter"),
+                    savedAt = item.optLong("savedAt", 0L)
+                ).takeIf { it.sourceUrl.isNotBlank() && it.bookUrl.isNotBlank() }
+            }
+        }.getOrDefault(emptyList())
+    }
+
+    fun saveOnlineBook(book: SavedOnlineBook): Boolean {
+        val books = getOnlineBooks()
+        if (books.any { it.sourceUrl == book.sourceUrl && it.bookUrl == book.bookUrl }) return false
+        val array = JSONArray()
+        (books + book).forEach { b ->
+            array.put(JSONObject()
+                .put("sourceUrl", b.sourceUrl).put("bookUrl", b.bookUrl)
+                .put("title", b.title).put("author", b.author).put("intro", b.intro)
+                .put("coverUrl", b.coverUrl).put("tocUrl", b.tocUrl).put("kind", b.kind)
+                .put("lastChapter", b.lastChapter).put("savedAt", b.savedAt))
+        }
+        prefs.edit().putString("online_books", array.toString()).apply()
+        return true
+    }
+
+    fun removeOnlineBook(sourceUrl: String, bookUrl: String) {
+        val array = JSONArray()
+        getOnlineBooks().filterNot { it.sourceUrl == sourceUrl && it.bookUrl == bookUrl }.forEach { b ->
+            array.put(JSONObject()
+                .put("sourceUrl", b.sourceUrl).put("bookUrl", b.bookUrl)
+                .put("title", b.title).put("author", b.author).put("intro", b.intro)
+                .put("coverUrl", b.coverUrl).put("tocUrl", b.tocUrl).put("kind", b.kind)
+                .put("lastChapter", b.lastChapter).put("savedAt", b.savedAt))
+        }
+        prefs.edit().putString("online_books", array.toString()).apply()
+    }
+
+    fun isOnlineBookSaved(sourceUrl: String, bookUrl: String): Boolean =
+        getOnlineBooks().any { it.sourceUrl == sourceUrl && it.bookUrl == bookUrl }
 
     fun getSources(): List<BookSource> {
         val raw = prefs.getString("sources", "[]") ?: "[]"
