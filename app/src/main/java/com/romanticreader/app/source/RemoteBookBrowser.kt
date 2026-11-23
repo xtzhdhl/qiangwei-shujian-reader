@@ -52,6 +52,10 @@ fun RemoteBookBrowser(repository: BookSourceRepository, onBack: () -> Unit) {
     var cookieDialog by remember { mutableStateOf(false) }
     var cookieSourceUrl by remember { mutableStateOf("") }
     var cookieText by remember { mutableStateOf("") }
+    var debugDialog by remember { mutableStateOf(false) }
+    var debugRule by remember { mutableStateOf("@css:.book@text") }
+    var debugSample by remember { mutableStateOf("<div class=\"book\">示例小说</div>") }
+    var debugOutput by remember { mutableStateOf("输入规则与样例文本后点击测试。") }
 
     fun backStep() {
         when(stage) {
@@ -70,6 +74,22 @@ fun RemoteBookBrowser(repository: BookSourceRepository, onBack: () -> Unit) {
                     Text(when(stage) { "content" -> currentChapter?.name ?: "正文"; "chapters" -> detail?.name ?: "目录"; "results" -> "搜索结果"; else -> "在线找书" }, color = SourceInk, fontWeight = FontWeight.SemiBold, fontSize = 19.sp)
                     Text("ROSE LETTER · SOURCE READER", color = SourceMuted, fontSize = 9.sp)
                 }
+            }
+            if (debugDialog) {
+                AlertDialog(
+                    onDismissRequest = { debugDialog = false },
+                    title = { Text("书源规则调试器") },
+                    text = {
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text("可测试 CSS、XPath、JSONPath、正则和基础规则。JS 规则执行支持正在开发。", fontSize = 12.sp, color = SourceMuted)
+                            OutlinedTextField(debugRule, { debugRule = it }, label = { Text("规则") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+                            OutlinedTextField(debugSample, { debugSample = it }, label = { Text("样例 HTML / JSON / 文本") }, modifier = Modifier.fillMaxWidth(), minLines = 4)
+                            OutlinedButton(onClick = { debugOutput = engine.debugRule(debugSample, debugRule) }, modifier = Modifier.fillMaxWidth()) { Text("测试规则") }
+                            Text(debugOutput, fontSize = 12.sp, color = SourceInk, lineHeight = 18.sp)
+                        }
+                    },
+                    confirmButton = { TextButton(onClick = { debugDialog = false }) { Text("关闭") } }
+                )
             }
             if (cookieDialog) {
                 val enabledSources = repository.getSources().filter { it.enabled }
@@ -106,6 +126,7 @@ fun RemoteBookBrowser(repository: BookSourceRepository, onBack: () -> Unit) {
                     Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         OutlinedTextField(query, { query = it }, modifier = Modifier.fillMaxWidth(), singleLine = true, label = { Text("小说名 / 作者") }, trailingIcon = { Icon(Icons.Rounded.Search, null) })
                         OutlinedButton(onClick = { cookieDialog = true }, modifier = Modifier.fillMaxWidth()) { Text("登录态 / Cookie 管理") }
+                        OutlinedButton(onClick = { debugDialog = true }, modifier = Modifier.fillMaxWidth()) { Text("书源规则调试器") }
                         Button(onClick = {
                             if (query.isBlank()) { message = "先输入小说名哦"; return@Button }
                             scope.launch {
