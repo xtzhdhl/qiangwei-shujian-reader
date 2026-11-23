@@ -185,9 +185,9 @@ private fun HomeScreen(modifier: Modifier, books: List<Novel>, onImport: () -> U
         }
         item {
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-                HomeQuick("我的书架", Icons.Rounded.LocalLibrary, books.size.toString(), onShelf)
-                HomeQuick("书源管理", Icons.Rounded.Explore, "JSON", onImport)
-                HomeQuick("阅读记录", Icons.Rounded.History, "继续", { books.firstOrNull()?.let(onOpen) })
+                HomeQuick("我的书架", Icons.Rounded.LocalLibrary, books.size.toString(), Modifier.weight(1f), onShelf)
+                HomeQuick("书源管理", Icons.Rounded.Explore, "JSON", Modifier.weight(1f), onSources)
+                HomeQuick("阅读记录", Icons.Rounded.History, "继续", Modifier.weight(1f), { books.firstOrNull()?.let(onOpen) })
             }
         }
         item { SectionTitle("继续阅读", "CONTINUE", onShelf) }
@@ -392,7 +392,7 @@ private fun RoseReader(book: Novel, text: String, initialParagraph: Int, onBack:
     val paragraphs = remember(text) { formatNovelText(text) }
     val background = if (dark) Color(0xFF282426) else Color(0xFFF8F2E9)
     val foreground = if (dark) Color(0xFFE8DCD2) else Color(0xFF493C3B)
-    val listState = rememberLazyListState(initialFirstVisibleItemIndex = initialParagraph.coerceIn(0, (paragraphs.size - 1).coerceAtLeast(0)))
+    val listState = rememberLazyListState(initialFirstVisibleItemIndex = initialParagraph.coerceIn(0, (paragraphs.size - 1).coerceAtLeast(0)))\n    val scope = rememberCoroutineScope()
     val safePage = listState.firstVisibleItemIndex.coerceIn(0, (paragraphs.size - 1).coerceAtLeast(0))
     LaunchedEffect(listState.firstVisibleItemIndex) { onProgress(listState.firstVisibleItemIndex) }
 
@@ -405,17 +405,17 @@ private fun RoseReader(book: Novel, text: String, initialParagraph: Int, onBack:
         }
         if (paragraphs.isNotEmpty()) {
             Text("第 ${safePage + 1} / ${paragraphs.size} 段", color = RoseMuted, fontSize = 10.sp, modifier = Modifier.padding(start = 26.dp, top = 6.dp, bottom = 10.dp))
-            Box(Modifier.weight(1f).fillMaxWidth().clickable { page = (page + 1).coerceAtMost(paragraphs.lastIndex); onProgress(page) }) {
-                LazyColumn(contentPadding = PaddingValues(horizontal = 26.dp, vertical = 16.dp)) {
-                    item {
-                        Text(paragraphs[safePage], color = foreground, fontSize = fontSize.sp, lineHeight = (fontSize * lineSpace).sp, letterSpacing = .3.sp)
-                    }
+            LazyColumn(state = listState, modifier = Modifier.weight(1f).fillMaxWidth(), contentPadding = PaddingValues(horizontal = 26.dp, vertical = 16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                items(paragraphs.indices.toList()) { index ->
+                    val paragraph = paragraphs[index]
+                    val chapter = paragraph.matches(Regex("^(第[0-9一二三四五六七八九十百千零〇两]+[章节回卷].{0,50}|正文|序章|楔子|尾声|番外.*)$"))
+                    Text(paragraph, color = foreground, fontSize = if (chapter) (fontSize + 2).sp else fontSize.sp, fontWeight = if (chapter) FontWeight.SemiBold else FontWeight.Normal, lineHeight = (fontSize * lineSpace).sp, letterSpacing = .3.sp, modifier = if (chapter) Modifier.fillMaxWidth().padding(vertical = 10.dp) else Modifier.fillMaxWidth())
                 }
             }
             Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                TextButton(onClick = { page = (page - 1).coerceAtLeast(0); onProgress(page) }, enabled = page > 0) { Text("上一段", color = RoseDeep) }
-                Slider(page.toFloat(), onValueChange = { page = it.toInt() }, valueRange = 0f..paragraphs.lastIndex.coerceAtLeast(1).toFloat(), modifier = Modifier.weight(1f), colors = SliderDefaults.colors(thumbColor = RoseDeep, activeTrackColor = RoseDeep))
-                TextButton(onClick = { page = (page + 1).coerceAtMost(paragraphs.lastIndex); onProgress(page) }, enabled = page < paragraphs.lastIndex) { Text("下一段", color = RoseDeep) }
+                TextButton(onClick = { scope.launch { listState.animateScrollToItem((safePage - 1).coerceAtLeast(0)) } , enabled = safePage > 0) { Text("上一段", color = RoseDeep) }
+                Slider(safePage.toFloat(), onValueChange = { scope.launch { listState.scrollToItem(it.toInt()) } }, valueRange = 0f..paragraphs.lastIndex.coerceAtLeast(1).toFloat(), modifier = Modifier.weight(1f), colors = SliderDefaults.colors(thumbColor = RoseDeep, activeTrackColor = RoseDeep))
+                TextButton(onClick = { scope.launch { listState.animateScrollToItem((safePage + 1).coerceAtMost(paragraphs.lastIndex)) } }, enabled = safePage < paragraphs.lastIndex) { Text("下一段", color = RoseDeep) }
             }
         } else Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) { Text("这本书暂时没有正文", color = foreground) }
         if (controls) {
