@@ -30,8 +30,18 @@ jobs:
         run: |
           test -n "$SIGNING_KEYSTORE_BASE64" || { echo "Missing SIGNING_KEYSTORE_BASE64 secret"; exit 1; }
           echo "$SIGNING_KEYSTORE_BASE64" | base64 -d > release-keystore.jks
+      - name: Derive version from tag
+        run: |
+          TAG="${{ github.event.inputs.tag || github.ref_name }}"
+          VERSION="${TAG#v}"
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$VERSION"
+          CODE=$((MAJOR * 100000 + MINOR * 1000 + PATCH))
+          echo "RELEASE_VERSION_NAME=$VERSION" >> "$GITHUB_ENV"
+          echo "RELEASE_VERSION_CODE=$CODE" >> "$GITHUB_ENV"
       - name: Build signed APK
         env:
+          RELEASE_VERSION_NAME: ${{ env.RELEASE_VERSION_NAME }}
+          RELEASE_VERSION_CODE: ${{ env.RELEASE_VERSION_CODE }}
           RELEASE_KEYSTORE_FILE: release-keystore.jks
           RELEASE_STORE_PASSWORD: ${{ secrets.RELEASE_STORE_PASSWORD }}
           RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
