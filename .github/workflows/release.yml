@@ -41,6 +41,16 @@ jobs:
           echo "$SIGNING_KEYSTORE_BASE64" | base64 -d > release-keystore.jks
           test -s release-keystore.jks
 
+      - name: Verify signing secrets
+        env:
+          STORE_PASSWORD: ${{ secrets.RELEASE_STORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
+        run: |
+          test -n "$STORE_PASSWORD" || { echo "Missing RELEASE_STORE_PASSWORD"; exit 1; }
+          test -n "$KEY_ALIAS" || { echo "Missing RELEASE_KEY_ALIAS"; exit 1; }
+          test -n "$KEY_PASSWORD" || { echo "Missing RELEASE_KEY_PASSWORD"; exit 1; }
+
       - name: Set release version
         run: |
           TAG="${{ github.event.inputs.tag || github.ref_name }}"
