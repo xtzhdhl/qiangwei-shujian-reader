@@ -150,7 +150,7 @@ private fun RoseLetterApp(context: Context) {
                             sourceList = sources.getSources(); subscriptions = sources.getSubscriptions()
                             toast = result.fold({ "刷新完成，更新 $it 个书源" }, { "刷新失败：${it.message ?: "网络错误"}" })
                         }
-                    }, onRemoveSubscription = { url -> sources.removeSubscription(url); subscriptions = sources.getSubscriptions() }, onToggle = { s, enabled -> sources.setEnabled(s.url, enabled); sourceList = sources.getSources() }, onDelete = { s -> sources.delete(s.url); sourceList = sources.getSources() }, onBack = { sourcePage = false })
+                    }, onRemoveSubscription = { url -> sources.removeSubscription(url); subscriptions = sources.getSubscriptions() }, onToggle = { s, enabled -> sources.setEnabled(s.url, enabled); sourceList = sources.getSources() }, onDelete = { s -> sources.delete(s.url); sourceList = sources.getSources() }, onVerify = { s -> discoveryQuery = s.url; remoteReaderPage = true }, onBack = { sourcePage = false })
                     settingsPage -> SettingsScreen(Modifier.padding(padding), books.size, sourceList.size, updateStatus, onSources = { sourcePage = true }, onCheckUpdate = { sourceScope.launch { updateStatus = "正在检查更新…"; val result = withContext(Dispatchers.IO) { runCatching { AppUpdater.check(BuildConfig.VERSION_NAME, BuildConfig.VERSION_CODE.toLong()) } }; pendingUpdate = result.getOrNull(); updateStatus = result.fold({ if (it == null) "当前已是最新版本" else "发现新版本 ${it.version}" }, { "检查失败：${it.message}" }) } }, onBack = { settingsPage = false })
                     remoteReaderPage -> RemoteBookBrowser(sources, onBack = { remoteReaderPage = false; selectedOnlineBook = null }, onSaved = { onlineBooks = sources.getOnlineBooks() }, initialSavedBook = selectedOnlineBook, initialQuery = discoveryQuery, initialAuthorMode = discoveryAuthorMode)
                     tab == AppTab.Home -> HomeScreen(Modifier.padding(padding), books, onImport = { importTxt.launch(arrayOf("text/plain", "text/*")) }, onOpen = { book -> readerText = library.readText(book); activeBook = book }, onShelf = { tab = AppTab.Shelf }, onSources = { sourcePage = true })
@@ -394,7 +394,7 @@ private fun DiscoverScreen(modifier: Modifier, onSources: () -> Unit, onImport: 
 }
 
 @Composable
-private fun SourcesScreen(modifier: Modifier, sources: List<com.romanticreader.app.data.BookSource>, subscriptions: List<com.romanticreader.app.data.BookSourceSubscription>, onImport: () -> Unit, onAddSubscription: (String) -> Unit, onRefreshSubscription: (String) -> Unit, onRemoveSubscription: (String) -> Unit, onToggle: (com.romanticreader.app.data.BookSource, Boolean) -> Unit, onDelete: (com.romanticreader.app.data.BookSource) -> Unit, onBack: () -> Unit) {
+private fun SourcesScreen(modifier: Modifier, sources: List<com.romanticreader.app.data.BookSource>, subscriptions: List<com.romanticreader.app.data.BookSourceSubscription>, onImport: () -> Unit, onAddSubscription: (String) -> Unit, onRefreshSubscription: (String) -> Unit, onRemoveSubscription: (String) -> Unit, onToggle: (com.romanticreader.app.data.BookSource, Boolean) -> Unit, onDelete: (com.romanticreader.app.data.BookSource) -> Unit, onVerify: (com.romanticreader.app.data.BookSource) -> Unit, onBack: () -> Unit) {
     var subscriptionUrl by remember { mutableStateOf("") }
     LazyColumn(modifier.fillMaxSize(), contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item { RoseHeader("书源管理", "SOURCE GARDEN", trailing = { IconButton(onClick = onBack) { Icon(Icons.Rounded.Close, "关闭") } }) }
@@ -446,6 +446,9 @@ private fun SourcesScreen(modifier: Modifier, sources: List<com.romanticreader.a
                         Text(source.name, fontSize = 14.sp, color = RoseInk, fontWeight = FontWeight.Medium)
                         Text(source.url, fontSize = 10.sp, color = RoseMuted, maxLines = 2, overflow = TextOverflow.Ellipsis)
                         if (source.group.isNotBlank()) Text(source.group, fontSize = 10.sp, color = Champagne)
+                        Text("验证状态：${source.verificationStatus} · ${source.verificationMessage}", fontSize = 10.sp, color = if (source.verificationStatus == "正常") RoseDeep else RoseMuted, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                        if (source.lastVerifiedAt > 0L) Text("最近检测：${java.text.SimpleDateFormat("MM-dd HH:mm", java.util.Locale.getDefault()).format(java.util.Date(source.lastVerifiedAt))}", fontSize = 9.sp, color = RoseMuted)
+                        TextButton(onClick = { onVerify(source) }) { Text("网页验证 / 检测", color = RoseDeep) }
                     }
                     Switch(source.enabled, onCheckedChange = { onToggle(source, it) })
                     IconButton(onClick = { onDelete(source) }) { Icon(Icons.Rounded.DeleteOutline, "删除", tint = RoseMuted) }
