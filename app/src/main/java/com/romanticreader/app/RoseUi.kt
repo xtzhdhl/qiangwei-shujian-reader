@@ -413,7 +413,7 @@ private fun RoseReader(book: Novel, text: String, initialParagraph: Int, onBack:
                 }
             }
             Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                TextButton(onClick = { scope.launch { listState.animateScrollToItem((safePage - 1).coerceAtLeast(0)) } , enabled = safePage > 0) { Text("上一段", color = RoseDeep) }
+                TextButton(onClick = { scope.launch { listState.animateScrollToItem((safePage - 1).coerceAtLeast(0)) } }, enabled = safePage > 0) { Text("上一段", color = RoseDeep) }
                 Slider(safePage.toFloat(), onValueChange = { scope.launch { listState.scrollToItem(it.toInt()) } }, valueRange = 0f..paragraphs.lastIndex.coerceAtLeast(1).toFloat(), modifier = Modifier.weight(1f), colors = SliderDefaults.colors(thumbColor = RoseDeep, activeTrackColor = RoseDeep))
                 TextButton(onClick = { scope.launch { listState.animateScrollToItem((safePage + 1).coerceAtMost(paragraphs.lastIndex)) } }, enabled = safePage < paragraphs.lastIndex) { Text("下一段", color = RoseDeep) }
             }
