@@ -185,8 +185,9 @@ fun RemoteBookBrowser(repository: BookSourceRepository, onBack: () -> Unit, onSa
                                 }.onFailure { error ->
                                     val text = error.message ?: error.javaClass.simpleName
                                     val status = when {
-                                        text.contains("captcha", true) || text.contains("verify", true) || text.contains("human", true) || text.contains("challenge", true) -> "需要验证"
-                                        text.contains("401") || text.contains("403") || text.contains("login", true) || text.contains("登录", true) -> "需要登录"
+                                        text.contains("captcha", true) || text.contains("verify", true) || text.contains("human", true) || text.contains("challenge", true) || text.contains("验证码", true) -> "需要验证"
+                                        text.contains("401") || text.contains("login", true) || text.contains("登录", true) -> "需要登录"
+                                        text.contains("403") || text.contains("forbidden", true) || text.contains("拒绝访问", true) -> "访问被拦截"
                                         text.contains("timeout", true) || text.contains("timed out", true) -> "连接超时"
                                         else -> "检测失败"
                                     }
