@@ -375,7 +375,7 @@ class BookSourceRepository(context: Context) {
         connection.setRequestProperty("Cache-Control", "no-cache")
         try {
             val status = connection.responseCode
-            if (status !in 200..299) error("订阅服务器返回 HTTP \${status}（\${connection.responseMessage ?: "请求失败"}）")
+            if (status !in 200..299) error("订阅服务器返回 HTTP ${status}（${connection.responseMessage ?: "请求失败"}）")
             val length = connection.contentLengthLong
             if (length > 30L * 1024 * 1024) error("书源文件超过 30 MB，已停止导入")
             val rawStream = connection.inputStream
@@ -439,7 +439,7 @@ class BookSourceRepository(context: Context) {
         visit(root, 0)
         require(collected.isNotEmpty()) {
             val preview = text.take(100).replace("\n", " ")
-            "没有识别到书源。需要 JSON 数组或包含 bookSourceUrl 的 Legado 对象；服务器内容开头：\${preview}"
+            "没有识别到书源。需要 JSON 数组或包含 bookSourceUrl 的 Legado 对象；服务器内容开头：${preview}"
         }
         return JSONArray().also { array -> collected.values.forEach { array.put(it) } }
     }
