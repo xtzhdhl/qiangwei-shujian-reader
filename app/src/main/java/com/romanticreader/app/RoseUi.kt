@@ -236,7 +236,7 @@ private fun HomeScreen(modifier: Modifier, books: List<Novel>, onImport: () -> U
             }
         }
         item { SectionTitle("继续阅读", "CONTINUE", onShelf) }
-        if (books.isEmpty() && onlineBooks.isEmpty()) item { EmptyBooksCard(onImport) }
+        if (books.isEmpty()) item { EmptyBooksCard(onImport) }
         else items(books.take(3), key = { it.id }) { book ->
             BookRow(book, onClick = { onOpen(book) }, trailing = {
                 Text("继续阅读 ›", fontSize = 12.sp, color = RoseDeep)
@@ -280,7 +280,7 @@ private fun ShelfScreen(modifier: Modifier, books: List<Novel>, onlineBooks: Lis
                 }
             }
         }
-        if (books.isEmpty()) item { EmptyBooksCard(onImport) }
+        if (books.isEmpty() && onlineBooks.isEmpty()) item { EmptyBooksCard(onImport) }
         items(books, key = { it.id }) { book -> BookRow(book, onClick = { onOpen(book) }, trailing = { IconButton(onClick = { onDelete(book) }) { Icon(Icons.Rounded.DeleteOutline, "删除", tint = RoseMuted) } }) }
     }
 }
