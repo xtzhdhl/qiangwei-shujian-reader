@@ -268,6 +268,26 @@ private fun HomeQuick(title: String, icon: androidx.compose.ui.graphics.vector.I
 @Composable
 private fun ShelfScreen(modifier: Modifier, books: List<Novel>, onlineBooks: List<com.romanticreader.app.data.SavedOnlineBook>, onImport: () -> Unit, onOpen: (Novel) -> Unit, onDelete: (Novel) -> Unit, onRemoveOnline: (com.romanticreader.app.data.SavedOnlineBook) -> Unit) {
     LazyColumn(modifier.fillMaxSize(), contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        if (onlineBooks.isNotEmpty()) {
+            item { SectionTitle("在线收藏", "SAVED FROM SOURCES") }
+            items(onlineBooks, key = { "online_" + it.sourceUrl + it.bookUrl }) { online ->
+                RoseCard(Modifier.fillMaxWidth()) {
+                    Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Box(Modifier.size(58.dp, 78.dp).clip(RoundedCornerShape(12.dp)).background(Brush.linearGradient(listOf(Color(0xFFEED7DF), Color(0xFFF8EDE5)))), contentAlignment = Alignment.Center) {
+                            Icon(Icons.Rounded.MenuBook, null, tint = RoseDeep.copy(alpha = .65f), modifier = Modifier.size(30.dp))
+                        }
+                        Spacer(Modifier.width(12.dp))
+                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text(online.title, fontSize = 15.sp, color = RoseInk, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                            Text(online.author.ifBlank { "作者未知" }, fontSize = 11.sp, color = RoseMuted)
+                            Text("在线书源 · " + online.kind, fontSize = 10.sp, color = RoseDeep)
+                            if (online.lastChapter.isNotBlank()) Text("最新：" + online.lastChapter, fontSize = 10.sp, color = RoseMuted, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        }
+                        IconButton(onClick = { onRemoveOnline(online) }) { Icon(Icons.Rounded.DeleteOutline, "取消收藏", tint = RoseMuted) }
+                    }
+                }
+            }
+        }
         item { RoseHeader("我的书架", "MY LITTLE LIBRARY", trailing = { IconButton(onClick = onImport) { Icon(Icons.Rounded.Add, "添加书籍", tint = RoseDeep) } }) }
         item {
             RoseCard(Modifier.fillMaxWidth()) {
