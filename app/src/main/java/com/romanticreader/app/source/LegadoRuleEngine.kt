@@ -264,20 +264,29 @@ class LegadoRuleEngine(private val cookieJar: PersistentCookieJar? = null) {
     }
 
     private fun renderTemplate(template: String, variables: Map<String, String>, node: Any?): String {
-        val withVars = template
-            .replace("{{key}}", URLEncoder.encode(variables["key"] ?: "", "UTF-8"))
-            .replace("{{page}}", variables["page"] ?: "1")
+        val encodedKey = URLEncoder.encode(variables["key"] ?: "", "UTF-8")
+        val page = variables["page"] ?: "1"
+        var rendered = template
+            .replace("{{key}}", encodedKey, ignoreCase = true)
+            .replace("{{page}}", page, ignoreCase = true)
+            .replace("{key}", encodedKey, ignoreCase = true)
+            .replace("{searchKey}", encodedKey, ignoreCase = true)
+            .replace("{keyword}", encodedKey, ignoreCase = true)
+            .replace("{page}", page, ignoreCase = true)
+            .replace("<key>", encodedKey, ignoreCase = true)
+            .replace("<page>", page, ignoreCase = true)
         val regex = Regex("\\{\\{(.*?)\\}\\}")
-        return regex.replace(withVars) { match ->
+        rendered = regex.replace(rendered) { match ->
             val expression = match.groupValues[1].trim()
             when {
-                expression == "key" -> URLEncoder.encode(variables["key"] ?: "", "UTF-8")
-                expression == "page" -> variables["page"] ?: "1"
+                expression == "key" || expression == "searchKey" || expression == "keyword" -> encodedKey
+                expression == "page" -> page
                 expression.startsWith("$.") -> jsonPathValue(node, expression).firstOrNull().orEmpty()
                 expression.startsWith("@json:") -> jsonPathValue(node, expression.removePrefix("@json:")).firstOrNull().orEmpty()
-                else -> ""
+                else -> match.value
             }
         }
+        return rendered
     }
 
     private fun executeJavaScript(rule: String, input: String, data: Any? = null): Any? {
