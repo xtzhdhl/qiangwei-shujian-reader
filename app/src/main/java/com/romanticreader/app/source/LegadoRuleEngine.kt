@@ -267,7 +267,7 @@ class LegadoRuleEngine {
         }
         if (trimmed.startsWith("@regex:", true) || trimmed.startsWith(":")) {
             val pattern = if (trimmed.startsWith("@regex:", true)) trimmed.substringAfter(":") else trimmed.removePrefix(":")
-            return runCatching { Regex(pattern, setOf(RegexOption.DOT_MATCHES_ALL)).findAll(input).map { it.groupValues.getOrElse(1) { it.value } }.toList() }.getOrDefault(emptyList())
+            return runCatching { Regex(pattern, setOf(RegexOption.DOT_MATCHES_ALL)).findAll(input).map { match -> match.groupValues.getOrElse(1) { match.value } }.toList() }.getOrDefault(emptyList())
         }
         val raw = parseJsonIfPossible(input)
         val expression = trimmed.removePrefix("@json:").trim()
