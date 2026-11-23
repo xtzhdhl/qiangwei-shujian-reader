@@ -143,6 +143,14 @@ class NovelRepository(context: Context) {
     }
 }
 
+
+data class BookSourceSubscription(
+    val url: String,
+    val name: String,
+    val sourceCount: Int,
+    val lastSyncAt: Long
+)
+
 class BookSourceRepository(context: Context) {
     private val prefs = context.applicationContext.getSharedPreferences("rose_letter_sources", Context.MODE_PRIVATE)
 
@@ -164,37 +172,178 @@ class BookSourceRepository(context: Context) {
         }.getOrDefault(emptyList())
     }
 
-    fun importJson(content: String): Int {
-        val incoming = runCatching {
-            val trimmed = content.trim()
-            when {
-                trimmed.startsWith("[") -> JSONArray(trimmed)
-                trimmed.startsWith("{") -> {
-                    val obj = JSONObject(trimmed)
-                    obj.optJSONArray("sources")
-                        ?: obj.optJSONArray("bookSources")
-                        ?: JSONArray().put(obj)
-                }
-                else -> error("不是有效的 JSON")
+    fun getSubscriptions(): List<BookSourceSubscription> {
+        val raw = prefs.getString("subscriptions", "[]") ?: "[]"
+        return runCatching {
+            val array = JSONArray(raw)
+            (0 until array.length()).mapNotNull { index ->
+                val item = array.optJSONObject(index) ?: return@mapNotNull null
+                val url = item.optString("url")
+                if (url.isBlank()) return@mapNotNull null
+                BookSourceSubscription(
+                    url = url,
+                    name = item.optString("name").ifBlank { url },
+                    sourceCount = item.optInt("sourceCount"),
+                    lastSyncAt = item.optLong("lastSyncAt")
+                )
             }
-        }.getOrElse { throw IllegalArgumentException("无法解析 JSON 书源文件") }
+        }.getOrDefault(emptyList())
+    }
 
-        val existing = runCatching { JSONArray(prefs.getString("sources", "[]") ?: "[]") }.getOrDefault(JSONArray())
-        val urls = mutableSetOf<String>()
+    private fun saveSubscriptions(items: List<BookSourceSubscription>) {
+        val array = JSONArray()
+        items.forEach { item ->
+            array.put(
+                JSONObject()
+                    .put("url", item.url)
+                    .put("name", item.name)
+                    .put("sourceCount", item.sourceCount)
+                    .put("lastSyncAt", item.lastSyncAt)
+            )
+        }
+        prefs.edit().putString("subscriptions", array.toString()).apply()
+    }
+
+    /**
+     * Imports a Legado-compatible source list. Rule fields are kept as-is:
+     * both object-valued rules and legacy JSON-string rule blocks are retained.
+     */
+    fun importJson(content: String): Int {
+        val incoming = parseSourceArray(content)
+        val existing = runCatching { JSONArray(prefs.getString("sources", "[]") ?: "[]") }
+            .getOrDefault(JSONArray())
+
+        val existingIndex = mutableMapOf<String, Int>()
         for (i in 0 until existing.length()) {
-            existing.optJSONObject(i)?.optString("bookSourceUrl")?.takeIf { it.isNotBlank() }?.let(urls::add)
+            existing.optJSONObject(i)?.optString("bookSourceUrl")
+                ?.takeIf { it.isNotBlank() }?.let { existingIndex[it] = i }
         }
 
-        var added = 0
+        var changed = 0
         for (i in 0 until incoming.length()) {
             val item = incoming.optJSONObject(i) ?: continue
-            val url = item.optString("bookSourceUrl").trim()
-            if (url.isBlank() || !urls.add(url)) continue
-            existing.put(item)
-            added++
+            val sourceUrl = item.optString("bookSourceUrl").trim()
+            if (sourceUrl.isBlank()) continue
+            val oldIndex = existingIndex[sourceUrl]
+            if (oldIndex == null) {
+                if (!item.has("enabled")) item.put("enabled", true)
+                existingIndex[sourceUrl] = existing.length()
+                existing.put(item)
+                changed++
+            } else {
+                val old = existing.optJSONObject(oldIndex)
+                // Preserve the user's local enabled/disabled choice on subscription refresh.
+                if (old != null) item.put("enabled", old.optBoolean("enabled", true))
+                existing.put(oldIndex, item)
+                changed++
+            }
         }
         prefs.edit().putString("sources", existing.toString()).apply()
-        return added
+        return changed
+    }
+
+    fun addSubscription(url: String): Int {
+        val normalized = validateSubscriptionUrl(url)
+        val raw = downloadText(normalized)
+        val changed = importJson(raw)
+        val count = runCatching { parseSourceArray(raw).length() }.getOrDefault(changed)
+        val previous = getSubscriptions().filterNot { it.url == normalized }
+        val displayName = runCatching {
+            val array = parseSourceArray(raw)
+            array.optJSONObject(0)?.optString("bookSourceGroup")?.takeIf { it.isNotBlank() }
+        }.getOrNull() ?: "远程书源订阅"
+        saveSubscriptions(previous + BookSourceSubscription(normalized, displayName, count, System.currentTimeMillis()))
+        return changed
+    }
+
+    fun syncSubscription(url: String): Int {
+        val normalized = validateSubscriptionUrl(url)
+        val raw = downloadText(normalized)
+        val changed = importJson(raw)
+        val count = runCatching { parseSourceArray(raw).length() }.getOrDefault(changed)
+        val existing = getSubscriptions()
+        val old = existing.firstOrNull { it.url == normalized }
+        val updated = existing.filterNot { it.url == normalized } + BookSourceSubscription(
+            normalized,
+            old?.name ?: "远程书源订阅",
+            count,
+            System.currentTimeMillis()
+        )
+        saveSubscriptions(updated)
+        return changed
+    }
+
+    fun removeSubscription(url: String) {
+        saveSubscriptions(getSubscriptions().filterNot { it.url == url })
+    }
+
+    private fun validateSubscriptionUrl(value: String): String {
+        val url = value.trim()
+        val parsed = runCatching { java.net.URL(url) }.getOrElse {
+            throw IllegalArgumentException("请输入有效的订阅链接")
+        }
+        require(parsed.protocol.equals("https", ignoreCase = true)) { "为保护连接安全，书源订阅只接受 HTTPS 链接" }
+        return parsed.toString()
+    }
+
+    private fun downloadText(url: String): String {
+        val connection = (java.net.URL(url).openConnection() as? java.net.HttpURLConnection)
+            ?: error("不支持的订阅地址")
+        connection.connectTimeout = 15000
+        connection.readTimeout = 20000
+        connection.instanceFollowRedirects = true
+        connection.setRequestProperty("User-Agent", "RoseLetter/0.3 Android")
+        connection.setRequestProperty("Accept", "application/json, text/plain, */*")
+        try {
+            val status = connection.responseCode
+            if (status !in 200..299) error("订阅服务器返回 HTTP $status")
+            val length = connection.contentLengthLong
+            if (length > 20L * 1024 * 1024) error("书源文件超过 20 MB，已停止导入")
+            val bytes = connection.inputStream.use { input ->
+                val output = java.io.ByteArrayOutputStream()
+                val buffer = ByteArray(8192)
+                var total = 0
+                while (true) {
+                    val read = input.read(buffer)
+                    if (read < 0) break
+                    total += read
+                    if (total > 20 * 1024 * 1024) error("书源文件超过 20 MB，已停止导入")
+                    output.write(buffer, 0, read)
+                }
+                output.toByteArray()
+            }
+            return String(bytes, Charsets.UTF_8).removePrefix("\uFEFF")
+        } finally {
+            connection.disconnect()
+        }
+    }
+
+    private fun parseSourceArray(content: String): JSONArray {
+        val root = runCatching { JSONObject(content.trim()) }.getOrNull()
+        val trimmed = content.trim()
+        val array = when {
+            trimmed.startsWith("[") -> JSONArray(trimmed)
+            root != null -> {
+                val nested = root.optJSONArray("sources")
+                    ?: root.optJSONArray("bookSources")
+                    ?: root.optJSONArray("bookSourceList")
+                    ?: root.optJSONArray("data")
+                    ?: root.optJSONArray("list")
+                when {
+                    nested != null -> nested
+                    root.has("bookSourceUrl") -> JSONArray().put(root)
+                    else -> throw IllegalArgumentException("JSON 中没有找到书源列表或 bookSourceUrl")
+                }
+            }
+            else -> throw IllegalArgumentException("文件不是有效的 JSON 书源")
+        }
+        val valid = JSONArray()
+        for (i in 0 until array.length()) {
+            val item = array.optJSONObject(i) ?: continue
+            if (item.optString("bookSourceUrl").isNotBlank()) valid.put(item)
+        }
+        require(valid.length() > 0) { "没有识别到带 bookSourceUrl 的书源条目" }
+        return valid
     }
 
     fun setEnabled(url: String, enabled: Boolean) {
