@@ -74,6 +74,8 @@ private fun RoseLetterApp(context: Context) {
     var sourcePage by remember { mutableStateOf(false) }
     var remoteReaderPage by remember { mutableStateOf(false) }
     var selectedOnlineBook by remember { mutableStateOf<com.romanticreader.app.data.SavedOnlineBook?>(null) }
+    var discoveryQuery by remember { mutableStateOf("") }
+    var discoveryAuthorMode by remember { mutableStateOf(false) }
     var settingsPage by remember { mutableStateOf(false) }
 
     val importTxt = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
@@ -150,10 +152,10 @@ private fun RoseLetterApp(context: Context) {
                         }
                     }, onRemoveSubscription = { url -> sources.removeSubscription(url); subscriptions = sources.getSubscriptions() }, onToggle = { s, enabled -> sources.setEnabled(s.url, enabled); sourceList = sources.getSources() }, onDelete = { s -> sources.delete(s.url); sourceList = sources.getSources() }, onBack = { sourcePage = false })
                     settingsPage -> SettingsScreen(Modifier.padding(padding), books.size, sourceList.size, updateStatus, onSources = { sourcePage = true }, onCheckUpdate = { sourceScope.launch { updateStatus = "正在检查更新…"; val result = withContext(Dispatchers.IO) { runCatching { AppUpdater.check(BuildConfig.VERSION_NAME) } }; pendingUpdate = result.getOrNull(); updateStatus = result.fold({ if (it == null) "当前已是最新版本" else "发现新版本 ${it.version}" }, { "检查失败：${it.message}" }) } }, onBack = { settingsPage = false })
-                    remoteReaderPage -> RemoteBookBrowser(sources, onBack = { remoteReaderPage = false; selectedOnlineBook = null }, onSaved = { onlineBooks = sources.getOnlineBooks() }, initialSavedBook = selectedOnlineBook)
+                    remoteReaderPage -> RemoteBookBrowser(sources, onBack = { remoteReaderPage = false; selectedOnlineBook = null }, onSaved = { onlineBooks = sources.getOnlineBooks() }, initialSavedBook = selectedOnlineBook, initialQuery = discoveryQuery, initialAuthorMode = discoveryAuthorMode)
                     tab == AppTab.Home -> HomeScreen(Modifier.padding(padding), books, onImport = { importTxt.launch(arrayOf("text/plain", "text/*")) }, onOpen = { book -> readerText = library.readText(book); activeBook = book }, onShelf = { tab = AppTab.Shelf }, onSources = { sourcePage = true })
                     tab == AppTab.Shelf -> ShelfScreen(Modifier.padding(padding), books, onlineBooks, onImport = { importTxt.launch(arrayOf("text/plain", "text/*")) }, onOpen = { book -> readerText = library.readText(book); activeBook = book }, onDelete = { book -> library.deleteBook(book.id); books = library.getBooks() }, onRemoveOnline = { book -> sources.removeOnlineBook(book.sourceUrl, book.bookUrl); onlineBooks = sources.getOnlineBooks() }, onOpenOnline = { book -> selectedOnlineBook = book; remoteReaderPage = true })
-                    tab == AppTab.Discover -> DiscoverScreen(Modifier.padding(padding), onSources = { sourcePage = true }, onImport = { importJson.launch(arrayOf("application/json", "text/*")) }, onRemoteSearch = { remoteReaderPage = true })
+                    tab == AppTab.Discover -> DiscoverScreen(Modifier.padding(padding), onSources = { sourcePage = true }, onImport = { importJson.launch(arrayOf("application/json", "text/*")) }, onRemoteSearch = { q, author -> discoveryQuery = q; discoveryAuthorMode = author; remoteReaderPage = true })
                     else -> SettingsScreen(Modifier.padding(padding), books.size, sourceList.size, updateStatus, onSources = { sourcePage = true }, onCheckUpdate = { sourceScope.launch { updateStatus = "正在检查更新…"; val result = withContext(Dispatchers.IO) { runCatching { AppUpdater.check("0.3.0") } }; pendingUpdate = result.getOrNull(); updateStatus = result.fold({ if (it == null) "当前已是最新版本" else "发现新版本 ${it.version}" }, { "检查失败：${it.message}" }) } }, onBack = {})
                 }
             }
@@ -348,15 +350,34 @@ private fun SectionTitle(title: String, english: String, action: (() -> Unit)? =
 }
 
 @Composable
-private fun DiscoverScreen(modifier: Modifier, onSources: () -> Unit, onImport: () -> Unit, onRemoteSearch: () -> Unit) {
+private fun DiscoverScreen(modifier: Modifier, onSources: () -> Unit, onImport: () -> Unit, onRemoteSearch: (String, Boolean) -> Unit) {
+    var searchText by remember { mutableStateOf("") }
+    var authorMode by remember { mutableStateOf(false) }
     LazyColumn(modifier.fillMaxSize(), contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         item { RoseHeader("发现", "DISCOVER YOUR NEXT STORY") }
         item {
             RoseCard(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text("在线搜书", fontSize = 22.sp, color = RoseInk, fontWeight = FontWeight.Medium)
+                    Text("跨已启用书源查找小说，也可以按作者查作品。", color = RoseMuted, fontSize = 13.sp, lineHeight = 21.sp)
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        FilterChip(selected = !authorMode, onClick = { authorMode = false }, label = { Text("书名搜索") })
+                        FilterChip(selected = authorMode, onClick = { authorMode = true }, label = { Text("作者搜索") })
+                    }
+                    OutlinedTextField(searchText, { searchText = it }, modifier = Modifier.fillMaxWidth(), singleLine = true, label = { Text(if (authorMode) "输入作者名" else "输入小说名") }, trailingIcon = { Icon(Icons.Rounded.Search, null) })
+                    Button(onClick = { if (searchText.isNotBlank()) onRemoteSearch(searchText.trim(), authorMode) }, enabled = searchText.isNotBlank(), modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = RoseDeep)) {
+                        Icon(Icons.Rounded.Search, null); Spacer(Modifier.width(6.dp)); Text(if (authorMode) "搜索该作者作品" else "搜索小说")
+                    }
+                }
+            }
+        }
+        item {
+            RoseCard(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text("书源花园", fontSize = 22.sp, color = RoseInk, fontWeight = FontWeight.Medium)
-                    Text("把可用的小说网站书源收进来，未来可搜索、发现和同步书籍。", color = RoseMuted, fontSize = 13.sp, lineHeight = 21.sp)
+                    Text("书源花园", fontSize = 20.sp, color = RoseInk, fontWeight = FontWeight.Medium)
+                    Text("管理书源、添加订阅，或导入 JSON 文件。", color = RoseMuted, fontSize = 13.sp, lineHeight = 21.sp)
                     Button(onClick = onSources, colors = ButtonDefaults.buttonColors(containerColor = RoseDeep)) { Text("管理书源") }
+                    OutlinedButton(onClick = onImport) { Icon(Icons.Rounded.FileOpen, null); Spacer(Modifier.width(6.dp)); Text("导入书源 JSON") }
                 }
             }
         }
@@ -364,23 +385,14 @@ private fun DiscoverScreen(modifier: Modifier, onSources: () -> Unit, onImport: 
             RoseCard(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("Legado JSON", fontWeight = FontWeight.SemiBold, color = RoseInk)
-                    Text("导入常见 Legado 格式 JSON。首版保存源信息与完整规则数据；在线搜索和规则执行引擎将在后续阶段接入。", fontSize = 12.sp, color = RoseMuted, lineHeight = 19.sp)
-                    OutlinedButton(onClick = onImport) { Icon(Icons.Rounded.FileOpen, null); Spacer(Modifier.width(6.dp)); Text("导入书源文件") }
-                }
-            }
-        }
-        item {
-            RoseCard(Modifier.fillMaxWidth()) {
-                Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                    Text("阅读小贴士", fontSize = 16.sp, color = RoseInk)
-                    Text("TXT 导入支持 UTF-8、GB18030、UTF-16 等常见编码尝试。阅读页会整理空行与章节标题，让正文更舒服。", fontSize = 12.sp, color = RoseMuted, lineHeight = 18.sp)
+                    Text("兼容常见书源 JSON 数组、单源对象及嵌套订阅结构。", fontSize = 12.sp, color = RoseMuted, lineHeight = 19.sp)
+                    OutlinedButton(onClick = onImport) { Icon(Icons.Rounded.FileOpen, null); Spacer(Modifier.width(6.dp)); Text("选择 JSON 文件") }
                 }
             }
         }
     }
 }
 
-@Composable
 private fun SourcesScreen(modifier: Modifier, sources: List<com.romanticreader.app.data.BookSource>, subscriptions: List<com.romanticreader.app.data.BookSourceSubscription>, onImport: () -> Unit, onAddSubscription: (String) -> Unit, onRefreshSubscription: (String) -> Unit, onRemoveSubscription: (String) -> Unit, onToggle: (com.romanticreader.app.data.BookSource, Boolean) -> Unit, onDelete: (com.romanticreader.app.data.BookSource) -> Unit, onBack: () -> Unit) {
     var subscriptionUrl by remember { mutableStateOf("") }
     LazyColumn(modifier.fillMaxSize(), contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
