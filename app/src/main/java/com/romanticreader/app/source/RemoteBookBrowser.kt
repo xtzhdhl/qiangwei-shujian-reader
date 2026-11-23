@@ -80,7 +80,7 @@ fun RemoteBookBrowser(repository: BookSourceRepository, onBack: () -> Unit) {
                                     list
                                 }
                                 hits = result
-                                message = if (result.isEmpty()) "没有找到结果。可能部分书源规则尚未兼容，或网站暂时无法访问。" else "找到 \${result.size} 个结果，点开查看详情与目录。"
+                                message = if (result.isEmpty()) "没有找到结果。可能部分书源规则尚未兼容，或网站暂时无法访问。" else "找到 ${result.size} 个结果，点开查看详情与目录。"
                                 loading = false
                                 stage = "results"
                             }
@@ -107,8 +107,8 @@ fun RemoteBookBrowser(repository: BookSourceRepository, onBack: () -> Unit) {
                             }) {
                                 Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                                     Text(hit.name, color = SourceInk, fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
-                                    Text("\${hit.author.ifBlank { "作者未知" }} · \${repository.getSources().firstOrNull { it.url == hit.sourceUrl }?.name ?: "书源"}", color = SourceMuted, fontSize = 11.sp)
-                                    if (hit.lastChapter.isNotBlank()) Text("最新：\${hit.lastChapter}", color = SourceMuted, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                    Text("${hit.author.ifBlank { "作者未知" }} · ${repository.getSources().firstOrNull { it.url == hit.sourceUrl }?.name ?: "书源"}", color = SourceMuted, fontSize = 11.sp)
+                                    if (hit.lastChapter.isNotBlank()) Text("最新：${hit.lastChapter}", color = SourceMuted, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                     if (hit.intro.isNotBlank()) Text(hit.intro, color = SourceInk, fontSize = 12.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
                                 }
                             }
@@ -119,7 +119,7 @@ fun RemoteBookBrowser(repository: BookSourceRepository, onBack: () -> Unit) {
                     detail?.let { book ->
                         Column(Modifier.padding(horizontal = 16.dp, vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
                             Text(book.name, color = SourceInk, fontWeight = FontWeight.Bold, fontSize = 20.sp)
-                            Text("\${book.author} · \${book.kind}", color = SourceMuted, fontSize = 12.sp)
+                            Text("${book.author} · ${book.kind}", color = SourceMuted, fontSize = 12.sp)
                             if (book.intro.isNotBlank()) Text(book.intro, color = SourceInk, fontSize = 12.sp, maxLines = 4, overflow = TextOverflow.Ellipsis)
                             Button(onClick = {
                                 scope.launch {
@@ -128,7 +128,7 @@ fun RemoteBookBrowser(repository: BookSourceRepository, onBack: () -> Unit) {
                                         val src = repository.getRawSource(book.sourceUrl) ?: error("书源已停用")
                                         engine.loadChapters(src, book)
                                     }
-                                    message = "共 \${chapters.size} 章"
+                                    message = "共 ${chapters.size} 章"
                                     loading = false
                                 }
                             }, enabled = !loading, colors = ButtonDefaults.buttonColors(containerColor = SourceRose)) { Text(if (loading) "加载目录中…" else if (chapters.isEmpty()) "加载目录" else "重新加载目录") }
