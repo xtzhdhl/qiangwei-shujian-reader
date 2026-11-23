@@ -344,6 +344,12 @@ class BookSourceRepository(context: Context) {
                 val old = existing.optJSONObject(oldIndex)
                 // Preserve the user's local enabled/disabled choice on subscription refresh.
                 if (old != null) item.put("enabled", old.optBoolean("enabled", true))
+                val verification = runCatching { JSONObject(prefs.getString("source_verification", "{}") ?: "{}") }
+                    .getOrDefault(JSONObject())
+                if (old != null && old.toString() != item.toString()) {
+                    verification.remove(sourceUrl)
+                    prefs.edit().putString("source_verification", verification.toString()).apply()
+                }
                 existing.put(oldIndex, item)
                 changed++
             }
