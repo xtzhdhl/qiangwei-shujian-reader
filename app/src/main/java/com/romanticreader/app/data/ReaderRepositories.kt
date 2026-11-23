@@ -354,70 +354,94 @@ class BookSourceRepository(context: Context) {
     private fun validateSubscriptionUrl(value: String): String {
         val url = value.trim()
         val parsed = runCatching { java.net.URL(url) }.getOrElse {
-            throw IllegalArgumentException("请输入有效的订阅链接")
+            throw IllegalArgumentException("请输入有效的书源链接")
         }
-        require(parsed.protocol.equals("https", ignoreCase = true)) { "为保护连接安全，书源订阅只接受 HTTPS 链接" }
+        require(parsed.protocol.equals("https", true) || parsed.protocol.equals("http", true)) {
+            "只支持 HTTP 或 HTTPS 的 JSON 书源地址"
+        }
+        require(parsed.host.isNotBlank()) { "书源地址缺少网站域名" }
         return parsed.toString()
     }
 
     private fun downloadText(url: String): String {
         val connection = (java.net.URL(url).openConnection() as? java.net.HttpURLConnection)
             ?: error("不支持的订阅地址")
-        connection.connectTimeout = 15000
-        connection.readTimeout = 20000
+        connection.connectTimeout = 20000
+        connection.readTimeout = 30000
         connection.instanceFollowRedirects = true
-        connection.setRequestProperty("User-Agent", "RoseLetter/0.3 Android")
+        connection.setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/124 Mobile Safari/537.36 RoseLetter/0.4")
         connection.setRequestProperty("Accept", "application/json, text/plain, */*")
+        connection.setRequestProperty("Accept-Encoding", "gzip")
+        connection.setRequestProperty("Cache-Control", "no-cache")
         try {
             val status = connection.responseCode
-            if (status !in 200..299) error("订阅服务器返回 HTTP $status")
+            if (status !in 200..299) error("订阅服务器返回 HTTP \${status}（\${connection.responseMessage ?: "请求失败"}）")
             val length = connection.contentLengthLong
-            if (length > 20L * 1024 * 1024) error("书源文件超过 20 MB，已停止导入")
-            val bytes = connection.inputStream.use { input ->
+            if (length > 30L * 1024 * 1024) error("书源文件超过 30 MB，已停止导入")
+            val rawStream = connection.inputStream
+            val input = if (connection.contentEncoding.equals("gzip", true)) java.util.zip.GZIPInputStream(rawStream) else rawStream
+            val bytes = input.use { stream ->
                 val output = java.io.ByteArrayOutputStream()
                 val buffer = ByteArray(8192)
                 var total = 0
                 while (true) {
-                    val read = input.read(buffer)
+                    val read = stream.read(buffer)
                     if (read < 0) break
                     total += read
-                    if (total > 20 * 1024 * 1024) error("书源文件超过 20 MB，已停止导入")
+                    if (total > 30 * 1024 * 1024) error("书源文件超过 30 MB，已停止导入")
                     output.write(buffer, 0, read)
                 }
                 output.toByteArray()
             }
-            return String(bytes, Charsets.UTF_8).removePrefix("\uFEFF")
+            val body = String(bytes, Charsets.UTF_8).removePrefix("\uFEFF").trim()
+            if (body.startsWith("<!DOCTYPE", true) || body.startsWith("<html", true) || body.contains("Just a moment", true) || body.contains("verify you are human", true)) {
+                error("服务器返回了网页/防护验证页，不是 JSON。请换用该书源仓库提供的 raw 下载地址")
+            }
+            if (body.isBlank()) error("服务器返回内容为空")
+            return body
         } finally {
             connection.disconnect()
         }
     }
 
     private fun parseSourceArray(content: String): JSONArray {
-        val root = runCatching { JSONObject(content.trim()) }.getOrNull()
-        val trimmed = content.trim()
-        val array = when {
-            trimmed.startsWith("[") -> JSONArray(trimmed)
-            root != null -> {
-                val nested = root.optJSONArray("sources")
-                    ?: root.optJSONArray("bookSources")
-                    ?: root.optJSONArray("bookSourceList")
-                    ?: root.optJSONArray("data")
-                    ?: root.optJSONArray("list")
-                when {
-                    nested != null -> nested
-                    root.has("bookSourceUrl") -> JSONArray().put(root)
-                    else -> throw IllegalArgumentException("JSON 中没有找到书源列表或 bookSourceUrl")
+        var text = content.trim().removePrefix("\uFEFF").trim()
+        if (text.startsWith(")]}',")) text = text.substringAfter(",").trim()
+        if (text.startsWith("while(1);")) text = text.removePrefix("while(1);").trim()
+
+        fun parse(value: String): Any? = runCatching { org.json.JSONTokener(value).nextValue() }.getOrNull()
+        var root: Any? = parse(text)
+        if (root is String) root = parse(root as String)
+
+        val collected = linkedMapOf<String, JSONObject>()
+        fun visit(value: Any?, depth: Int) {
+            if (value == null || depth > 10) return
+            when (value) {
+                is JSONArray -> for (i in 0 until value.length()) visit(value.opt(i), depth + 1)
+                is JSONObject -> {
+                    val sourceUrl = value.optString("bookSourceUrl").trim()
+                    if (sourceUrl.isNotBlank()) {
+                        collected.putIfAbsent(sourceUrl, JSONObject(value.toString()))
+                        return
+                    }
+                    val keys = value.keys()
+                    while (keys.hasNext()) {
+                        val child = value.opt(keys.next())
+                        if (child is JSONArray || child is JSONObject || child is String) {
+                            val nested = if (child is String) parse(child) else child
+                            visit(nested, depth + 1)
+                        }
+                    }
                 }
+                is String -> visit(parse(value), depth + 1)
             }
-            else -> throw IllegalArgumentException("文件不是有效的 JSON 书源")
         }
-        val valid = JSONArray()
-        for (i in 0 until array.length()) {
-            val item = array.optJSONObject(i) ?: continue
-            if (item.optString("bookSourceUrl").isNotBlank()) valid.put(item)
+        visit(root, 0)
+        require(collected.isNotEmpty()) {
+            val preview = text.take(100).replace("\n", " ")
+            "没有识别到书源。需要 JSON 数组或包含 bookSourceUrl 的 Legado 对象；服务器内容开头：\${preview}"
         }
-        require(valid.length() > 0) { "没有识别到带 bookSourceUrl 的书源条目" }
-        return valid
+        return JSONArray().also { array -> collected.values.forEach { array.put(it) } }
     }
 
     fun setEnabled(url: String, enabled: Boolean) {
