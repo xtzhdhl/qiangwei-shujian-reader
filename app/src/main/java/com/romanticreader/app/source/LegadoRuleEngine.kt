@@ -223,7 +223,20 @@ class LegadoRuleEngine(private val cookieJar: PersistentCookieJar? = null) {
                 out.toByteArray()
             }
             val charset = runCatching { Charset.forName(spec.charset) }.getOrDefault(Charsets.UTF_8)
-            return PageData(String(bytes, charset), connection.url.toString())
+            val bodyText = String(bytes, charset)
+            val lowerBody = bodyText.lowercase(Locale.ROOT)
+            val challengeMarkers = listOf(
+                "captcha", "verify you are human", "human verification", "security check",
+                "cloudflare", "cf-challenge", "challenge-platform", "人机验证", "验证码", "访问验证", "安全验证"
+            )
+            if (challengeMarkers.any { lowerBody.contains(it) }) {
+                error("网站要求人机验证/安全检查，请在书源验证页手动完成后同步 Cookie")
+            }
+            val loginMarkers = listOf("请先登录", "用户登录", "登录后阅读", "login required", "sign in to continue")
+            if (loginMarkers.any { lowerBody.contains(it) }) {
+                error("网站要求登录，请在内置网页验证页登录后同步 Cookie")
+            }
+            return PageData(bodyText, connection.url.toString())
         } finally {
             connection.disconnect()
         }
