@@ -80,6 +80,14 @@ class PersistentCookieJar(context: Context) {
     }
 
     @Synchronized
+    fun importCookieManagerCookies(url: String, cookieHeader: String) {
+        setManualCookieHeader(url, cookieHeader)
+    }
+
+    @Synchronized
+    fun getCookieHeaderForDomain(url: String): String = cookieHeader(url)
+
+    @Synchronized
     fun clearForUrl(url: String) {
         val host = runCatching { URI(url).host?.lowercase(Locale.ROOT) }.getOrNull() ?: return
         writeAll(readAll().filterNot { domainMatches(host, it.domain) })
