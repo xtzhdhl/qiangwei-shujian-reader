@@ -34,12 +34,13 @@ private val SourceWhite = Color(0xFFFFFDFB)
 private val SourceLine = Color(0xFFEED9D4)
 
 @Composable
-fun RemoteBookBrowser(repository: BookSourceRepository, onBack: () -> Unit, onSaved: () -> Unit = {}, initialSavedBook: SavedOnlineBook? = null) {
+fun RemoteBookBrowser(repository: BookSourceRepository, onBack: () -> Unit, onSaved: () -> Unit = {}, initialSavedBook: SavedOnlineBook? = null, initialQuery: String = "", initialAuthorMode: Boolean = false) {
     val context = LocalContext.current
     val cookieJar = remember { PersistentCookieJar(context) }
     val engine = remember(cookieJar) { LegadoRuleEngine(cookieJar) }
     val scope = rememberCoroutineScope()
-    var query by remember { mutableStateOf("") }
+    var query by remember { mutableStateOf(initialQuery) }
+    var authorMode by remember { mutableStateOf(initialAuthorMode) } }
     var hits by remember { mutableStateOf(emptyList<SourceBookHit>()) }
     var detail by remember { mutableStateOf<SourceBookDetail?>(null) }
     var chapters by remember { mutableStateOf(emptyList<SourceChapter>()) }
@@ -57,6 +58,7 @@ fun RemoteBookBrowser(repository: BookSourceRepository, onBack: () -> Unit, onSa
     var debugSample by remember { mutableStateOf("<div class=\"book\">示例小说</div>") }
     var debugOutput by remember { mutableStateOf("输入规则与样例文本后点击测试。") }
 
+    LaunchedEffect(initialQuery, initialAuthorMode) { query = initialQuery; authorMode = initialAuthorMode }
     LaunchedEffect(initialSavedBook?.bookUrl) {
         initialSavedBook?.let { saved ->
             detail = SourceBookDetail(
@@ -135,11 +137,12 @@ fun RemoteBookBrowser(repository: BookSourceRepository, onBack: () -> Unit, onSa
             when(stage) {
                 "search" -> {
                     Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        OutlinedTextField(query, { query = it }, modifier = Modifier.fillMaxWidth(), singleLine = true, label = { Text("小说名 / 作者") }, trailingIcon = { Icon(Icons.Rounded.Search, null) })
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) { FilterChip(selected = !authorMode, onClick = { authorMode = false }, label = { Text("书名") }); FilterChip(selected = authorMode, onClick = { authorMode = true }, label = { Text("作者") }) }
+                        OutlinedTextField(query, { query = it }, modifier = Modifier.fillMaxWidth(), singleLine = true, label = { Text(if (authorMode) "作者名" else "小说名") }, trailingIcon = { Icon(Icons.Rounded.Search, null) })
                         OutlinedButton(onClick = { cookieDialog = true }, modifier = Modifier.fillMaxWidth()) { Text("登录态 / Cookie 管理") }
                         OutlinedButton(onClick = { debugDialog = true }, modifier = Modifier.fillMaxWidth()) { Text("书源规则调试器") }
                         Button(onClick = {
-                            if (query.isBlank()) { message = "先输入小说名哦"; return@Button }
+                            if (query.isBlank()) { message = if (authorMode) "先输入作者名哦" else "先输入小说名哦"; return@Button }
                             scope.launch {
                                 loading = true; hits = emptyList(); searchPage = 1; message = "正在搜索已启用的书源…"
                                 val result = withContext(Dispatchers.IO) {
@@ -150,8 +153,8 @@ fun RemoteBookBrowser(repository: BookSourceRepository, onBack: () -> Unit, onSa
                                     }
                                     list
                                 }
-                                hits = result
-                                message = if (result.isEmpty()) "没有找到结果。可能部分书源规则尚未兼容，或网站暂时无法访问。" else "找到 ${result.size} 个结果，点开查看详情与目录。"
+                                hits = if (authorMode) result.filter { it.author.contains(query.trim(), ignoreCase = true) } else result
+                                message = if (hits.isEmpty()) (if (authorMode) "没有匹配该作者的作品。" else "没有找到结果。") + "可能部分书源规则尚未兼容，或网站暂时无法访问。" else "找到 ${hits.size} 个结果，点开查看详情与目录。"
                                 loading = false
                                 stage = "results"
                             }
@@ -177,7 +180,7 @@ fun RemoteBookBrowser(repository: BookSourceRepository, onBack: () -> Unit, onSa
                                         }
                                         list.distinctBy { it.bookUrl }
                                     }
-                                    hits = (hits + more).distinctBy { it.bookUrl }
+                                    hits = (hits + (if (authorMode) more.filter { it.author.contains(query.trim(), ignoreCase = true) } else more)).distinctBy { it.bookUrl }
                                     searchPage = next
                                     message = if (more.isEmpty()) "第 " + next + " 页没有新结果" else "已加载第 " + next + " 页，新增 " + more.size + " 个结果"
                                     loading = false
