@@ -376,6 +376,10 @@ private fun SourcesScreen(modifier: Modifier, sources: List<com.romanticreader.a
                     Text("粘贴 Legado JSON 订阅链接，导入后可以一键刷新。", color = RoseMuted, fontSize = 12.sp)
                     OutlinedTextField(subscriptionUrl, { subscriptionUrl = it }, modifier = Modifier.fillMaxWidth(), label = { Text("HTTPS 订阅链接") }, singleLine = true)
                     Button(onClick = { if (subscriptionUrl.isNotBlank()) onAddSubscription(subscriptionUrl.trim()) }, colors = ButtonDefaults.buttonColors(containerColor = RoseDeep)) { Text("添加并导入订阅") }
+                    Row {
+                        TextButton(onClick = { onAddSubscription("https://legado.aoaostar.com/sources/71e56d4f.json") }) { Text("导入示例源 A", color = RoseDeep) }
+                        TextButton(onClick = { onAddSubscription("https://e-c.coding.net/p/yicheng/d/YD/git/raw/master/sy.json") }) { Text("导入示例源 B", color = RoseDeep) }
+                    }
                 }
             }
         }
