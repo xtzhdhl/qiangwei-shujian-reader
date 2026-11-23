@@ -160,7 +160,8 @@ class LegadoRuleEngine {
     private fun request(source: JSONObject, rawUrl: String, variables: Map<String, String>): PageData {
         val rendered = renderTemplate(rawUrl, variables, null)
         val spec = parseRequestSpec(rendered, source)
-        val url = URL(spec.url)
+        val resolvedRequestUrl = absolute(source.optString("bookSourceUrl"), spec.url)
+        val url = URL(resolvedRequestUrl)
         require(url.protocol.equals("https", true) || url.protocol.equals("http", true)) { "书源请求只支持 HTTP/HTTPS" }
         val connection = (url.openConnection() as HttpURLConnection).apply {
             connectTimeout = 15000
@@ -264,6 +265,10 @@ class LegadoRuleEngine {
         if (trimmed.startsWith("@js:", true) || trimmed.contains("@js:")) {
             throw IllegalArgumentException("该规则包含 JavaScript；当前版本暂不执行 JS 书源脚本")
         }
+        if (trimmed.startsWith("@regex:", true) || trimmed.startsWith(":")) {
+            val pattern = if (trimmed.startsWith("@regex:", true)) trimmed.substringAfter(":") else trimmed.removePrefix(":")
+            return runCatching { Regex(pattern, setOf(RegexOption.DOT_MATCHES_ALL)).findAll(input).map { it.groupValues.getOrElse(1) { it.value } }.toList() }.getOrDefault(emptyList())
+        }
         val raw = parseJsonIfPossible(input)
         val expression = trimmed.removePrefix("@json:").trim()
         if (trimmed.startsWith("@json:", true) || expression.startsWith("$.") || expression.startsWith("$[")) {
@@ -349,6 +354,10 @@ class LegadoRuleEngine {
         val baseRule = if (cleanStart >= 0) r.substring(0, cleanStart).trim() else r
         val selected: List<Any> = when {
             baseRule.startsWith("@text:") -> listOf(baseRule.removePrefix("@text:"))
+            baseRule.startsWith("@regex:", true) || baseRule.startsWith(":") -> {
+                val pattern = if (baseRule.startsWith("@regex:", true)) baseRule.substringAfter(":") else baseRule.removePrefix(":")
+                runCatching { Regex(pattern, setOf(RegexOption.DOT_MATCHES_ALL)).findAll(input).map { it.groupValues.getOrElse(1) { it.value } }.toList() }.getOrDefault(emptyList())
+            }
             baseRule.startsWith("@json:", true) || baseRule.startsWith("$.") || baseRule.startsWith("$[") -> {
                 val json = (context as? JSONObject) ?: (context as? JSONArray) ?: parseJsonIfPossible(input) ?: return ""
                 jsonPath(json, baseRule.removePrefix("@json:"))
