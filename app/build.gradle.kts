@@ -42,6 +42,7 @@ android {
 }
 
 dependencies {
+    implementation("org.jsoup:jsoup:1.18.3")
     implementation("androidx.core:core:1.15.0")
     implementation(platform("androidx.compose:compose-bom:2024.12.01"))
     implementation("androidx.activity:activity-compose:1.10.0")
