@@ -280,9 +280,23 @@ class LegadoRuleEngine {
         }
         if (trimmed.startsWith("@xpath:", true) || trimmed.startsWith("//") || trimmed.startsWith("(//")) {
             val xpath = if (trimmed.startsWith("@xpath:", true)) trimmed.substringAfter(":") else trimmed
-            return runCatching { document.selectXpath(xpath, Element::class.java).toList() }.getOrDefault(emptyList())
+            return runCatching { xpathExtract(document, xpath) }.getOrDefault(emptyList())
         }
         return defaultSelect(document, trimmed)
+    }
+
+    private fun xpathExtract(document: Document, expression: String): List<Any> {
+        val attr = Regex("/@([A-Za-z_:][A-Za-z0-9_.:-]*)$").find(expression)
+        if (attr != null) {
+            val base = expression.substring(0, attr.range.first)
+            val name = attr.groupValues[1]
+            return runCatching { document.selectXpath(base, Element::class.java).map { it.attr(name) } }.getOrDefault(emptyList())
+        }
+        if (expression.endsWith("/text()")) {
+            val base = expression.removeSuffix("/text()")
+            return runCatching { document.selectXpath(base, Element::class.java).flatMap { it.textNodes().map { node -> node.text() } } }.getOrDefault(emptyList())
+        }
+        return runCatching { document.selectXpath(expression, Element::class.java).toList() }.getOrDefault(emptyList())
     }
 
     private val valueTypes = setOf("text", "textNodes", "ownText", "href", "src", "html", "all")
@@ -349,7 +363,7 @@ class LegadoRuleEngine {
             baseRule.startsWith("@xpath:", true) || baseRule.startsWith("//") || baseRule.startsWith("(//") -> {
                 val xpath = if (baseRule.startsWith("@xpath:", true)) baseRule.substringAfter(":") else baseRule
                 val doc = (context as? Document) ?: (context as? Element)?.ownerDocument() ?: Jsoup.parse(input, baseUrl)
-                runCatching { doc.selectXpath(xpath, Element::class.java).toList() }.getOrDefault(emptyList())
+                runCatching { xpathExtract(doc, xpath) }.getOrDefault(emptyList())
             }
             else -> {
                 if (context is Element) extractDefaultFromContext(context, baseRule)
