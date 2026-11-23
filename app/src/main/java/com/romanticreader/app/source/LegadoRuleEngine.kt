@@ -227,7 +227,7 @@ class LegadoRuleEngine(private val cookieJar: PersistentCookieJar? = null) {
             val lowerBody = bodyText.lowercase(Locale.ROOT)
             val challengeMarkers = listOf(
                 "captcha", "verify you are human", "human verification", "security check",
-                "cloudflare", "cf-challenge", "challenge-platform", "人机验证", "验证码", "访问验证", "安全验证"
+                "cf-challenge", "challenge-platform", "人机验证", "验证码", "访问验证", "安全验证"
             )
             if (challengeMarkers.any { lowerBody.contains(it) }) {
                 error("网站要求人机验证/安全检查，请在书源验证页手动完成后同步 Cookie")
