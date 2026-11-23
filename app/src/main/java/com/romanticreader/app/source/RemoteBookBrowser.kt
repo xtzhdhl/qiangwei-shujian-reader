@@ -21,6 +21,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.romanticreader.app.data.BookSourceRepository
+import com.romanticreader.app.data.SavedOnlineBook
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -178,6 +179,16 @@ fun RemoteBookBrowser(repository: BookSourceRepository, onBack: () -> Unit) {
                         Column(Modifier.padding(horizontal = 16.dp, vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
                             Text(book.name, color = SourceInk, fontWeight = FontWeight.Bold, fontSize = 20.sp)
                             Text("${book.author} · ${book.kind}", color = SourceMuted, fontSize = 12.sp)
+                            OutlinedButton(onClick = {
+                                val saved = repository.saveOnlineBook(SavedOnlineBook(
+                                    sourceUrl = book.sourceUrl, bookUrl = book.bookUrl, title = book.name,
+                                    author = book.author, intro = book.intro, coverUrl = book.coverUrl,
+                                    tocUrl = book.tocUrl, kind = book.kind, lastChapter = book.lastChapter
+                                ))
+                                message = if (saved) "已收藏到书架 🌹" else "这本书已经在书架啦"
+                            }, modifier = Modifier.fillMaxWidth()) {
+                                Text(if (repository.isOnlineBookSaved(book.sourceUrl, book.bookUrl)) "已收藏" else "收藏到书架")
+                            }
                             if (book.intro.isNotBlank()) Text(book.intro, color = SourceInk, fontSize = 12.sp, maxLines = 4, overflow = TextOverflow.Ellipsis)
                             Button(onClick = {
                                 scope.launch {
