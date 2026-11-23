@@ -33,7 +33,9 @@ private val SourceLine = Color(0xFFEED9D4)
 
 @Composable
 fun RemoteBookBrowser(repository: BookSourceRepository, onBack: () -> Unit) {
-    val engine = remember { LegadoRuleEngine() }
+    val context = LocalContext.current
+    val cookieJar = remember { PersistentCookieJar(context) }
+    val engine = remember(cookieJar) { LegadoRuleEngine(cookieJar) }
     val scope = rememberCoroutineScope()
     var query by remember { mutableStateOf("") }
     var hits by remember { mutableStateOf(emptyList<SourceBookHit>()) }
@@ -44,6 +46,10 @@ fun RemoteBookBrowser(repository: BookSourceRepository, onBack: () -> Unit) {
     var loading by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf("选择已启用书源，输入书名开始搜索。") }
     var stage by remember { mutableStateOf("search") }
+    var searchPage by remember { mutableIntStateOf(1) }
+    var cookieDialog by remember { mutableStateOf(false) }
+    var cookieSourceUrl by remember { mutableStateOf("") }
+    var cookieText by remember { mutableStateOf("") }
 
     fun backStep() {
         when(stage) {
@@ -97,15 +103,16 @@ fun RemoteBookBrowser(repository: BookSourceRepository, onBack: () -> Unit) {
                 "search" -> {
                     Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         OutlinedTextField(query, { query = it }, modifier = Modifier.fillMaxWidth(), singleLine = true, label = { Text("小说名 / 作者") }, trailingIcon = { Icon(Icons.Rounded.Search, null) })
+                        OutlinedButton(onClick = { cookieDialog = true }, modifier = Modifier.fillMaxWidth()) { Text("登录态 / Cookie 管理") }
                         Button(onClick = {
                             if (query.isBlank()) { message = "先输入小说名哦"; return@Button }
                             scope.launch {
-                                loading = true; hits = emptyList(); message = "正在搜索已启用的书源…"
+                                loading = true; hits = emptyList(); searchPage = 1; message = "正在搜索已启用的书源…"
                                 val result = withContext(Dispatchers.IO) {
                                     val list = mutableListOf<SourceBookHit>()
                                     repository.getSources().filter { it.enabled }.forEach { src ->
                                         val json = repository.getRawSource(src.url) ?: return@forEach
-                                        runCatching { engine.search(json, query.trim()) }.onSuccess { list += it }
+                                        runCatching { engine.search(json, query.trim(), 1) }.onSuccess { list += it }
                                     }
                                     list
                                 }
