@@ -286,9 +286,9 @@ class LegadoRuleEngine(private val cookieJar: PersistentCookieJar? = null) {
         val cx = Context.enter()
         try {
             cx.optimizationLevel = -1
-            cx.classShutter = object : ClassShutter {
+            cx.setClassShutter(object : ClassShutter {
                 override fun visibleToScripts(className: String): Boolean = false
-            }
+            })
             val scope = cx.initStandardObjects()
             ScriptableObject.putProperty(scope, "input", input)
             ScriptableObject.putProperty(scope, "data", Context.javaToJS(data ?: input, scope))
