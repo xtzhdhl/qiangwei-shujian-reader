@@ -30,7 +30,7 @@ class PersistentCookieJar(context: Context) {
         return readAll()
             .filter { it.expiresAt > now && domainMatches(host, it.domain) && pathMatches(path, it.path) && (!it.secure || secureRequest) }
             .sortedByDescending { it.path.length }
-            .joinToString("; ") { "\${it.name}=\${it.value}" }
+            .joinToString("; ") { "${it.name}=${it.value}" }
     }
 
     @Synchronized
@@ -45,7 +45,7 @@ class PersistentCookieJar(context: Context) {
                 val domain = (cookie.domain?.removePrefix(".") ?: host).lowercase(Locale.ROOT)
                 if (!domainMatches(host, domain)) return@cookieLoop
                 val cookiePath = cookie.path?.takeIf { it.startsWith("/") } ?: defaultPath(uri.path)
-                val entryKey = "\${cookie.name.lowercase(Locale.ROOT)}|\$domain|\$cookiePath"
+                val entryKey = "${cookie.name.lowercase(Locale.ROOT)}|$domain|$cookiePath"
                 if (cookie.maxAge == 0L) {
                     all.remove(entryKey)
                 } else {
@@ -118,7 +118,7 @@ class PersistentCookieJar(context: Context) {
         prefs.edit().putString("cookies", array.toString()).apply()
     }
 
-    private fun key(item: Entry) = "\${item.name.lowercase(Locale.ROOT)}|\${item.domain}|\${item.path}"
+    private fun key(item: Entry) = "${item.name.lowercase(Locale.ROOT)}|${item.domain}|${item.path}"
 
     private fun domainMatches(host: String, domain: String): Boolean = host == domain || host.endsWith(".$domain")
 
