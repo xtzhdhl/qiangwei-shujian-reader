@@ -40,7 +40,7 @@ fun RemoteBookBrowser(repository: BookSourceRepository, onBack: () -> Unit, onSa
     val engine = remember(cookieJar) { LegadoRuleEngine(cookieJar) }
     val scope = rememberCoroutineScope()
     var query by remember { mutableStateOf(initialQuery) }
-    var authorMode by remember { mutableStateOf(initialAuthorMode) } }
+    var authorMode by remember { mutableStateOf(initialAuthorMode) }
     var hits by remember { mutableStateOf(emptyList<SourceBookHit>()) }
     var detail by remember { mutableStateOf<SourceBookDetail?>(null) }
     var chapters by remember { mutableStateOf(emptyList<SourceChapter>()) }
