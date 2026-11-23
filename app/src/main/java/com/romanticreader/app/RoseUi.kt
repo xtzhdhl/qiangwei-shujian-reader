@@ -170,7 +170,8 @@ private fun RoseLetterApp(context: Context) {
                     },
                     dismissButton = { TextButton(onClick = { pendingUpdate = null }) { Text("稍后") } }
                 )
-            }\n            if (toast.isNotBlank()) {
+            }
+            if (toast.isNotBlank()) {
                 LaunchedEffect(toast) { kotlinx.coroutines.delay(2400); toast = "" }
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.BottomCenter) {
                     Surface(color = RoseInk, shape = RoundedCornerShape(24.dp), modifier = Modifier.padding(bottom = 92.dp)) {
@@ -429,7 +430,8 @@ private fun SettingsScreen(modifier: Modifier, bookCount: Int, sourceCount: Int,
         item { SettingItem(Icons.Rounded.Palette, "阅读主题", "纸白、奶油、粉雾、夜间主题将在阅读设置中扩展", {}) }
         item { SettingItem(Icons.Rounded.TextFields, "字体", "系统字体与自定义字体支持正在扩展", {}) }
         item { SettingItem(Icons.Rounded.Backup, "备份与恢复", "本地书架与书源备份规划中", {}) }
-        item { SettingItem(Icons.Rounded.SystemUpdate, "检查更新", updateStatus, onCheckUpdate) }\n        item { SettingItem(Icons.Rounded.Info, "关于", "蔷薇书笺 · 0.3.0", {}) }
+        item { SettingItem(Icons.Rounded.SystemUpdate, "检查更新", updateStatus, onCheckUpdate) }
+        item { SettingItem(Icons.Rounded.Info, "关于", "蔷薇书笺 · 0.3.0", {}) }
     }
 }
 
