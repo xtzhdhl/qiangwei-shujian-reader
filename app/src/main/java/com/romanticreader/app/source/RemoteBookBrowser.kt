@@ -147,14 +147,25 @@ fun RemoteBookBrowser(repository: BookSourceRepository, onBack: () -> Unit, onSa
                                 loading = true; hits = emptyList(); searchPage = 1; message = "正在搜索已启用的书源…"
                                 val result = withContext(Dispatchers.IO) {
                                     val list = mutableListOf<SourceBookHit>()
-                                    repository.getSources().filter { it.enabled }.forEach { src ->
-                                        val json = repository.getRawSource(src.url) ?: return@forEach
-                                        runCatching { engine.search(json, query.trim(), 1) }.onSuccess { list += it }
+                                    val errors = mutableListOf<String>()
+                                    val enabledSources = repository.getSources().filter { it.enabled }
+                                    enabledSources.forEach { src ->
+                                        val json = repository.getRawSource(src.url)
+                                        if (json == null) errors += src.name + ": 书源数据读取失败"
+                                        else runCatching { engine.search(json, query.trim(), 1) }
+                                            .onSuccess { list += it }
+                                            .onFailure { errors += src.name + ": " + (it.message ?: it.javaClass.simpleName) }
                                     }
-                                    list
+                                    Pair(list, errors)
                                 }
-                                hits = if (authorMode) result.filter { it.author.contains(query.trim(), ignoreCase = true) } else result
-                                message = if (hits.isEmpty()) (if (authorMode) "没有匹配该作者的作品。" else "没有找到结果。") + "可能部分书源规则尚未兼容，或网站暂时无法访问。" else "找到 ${hits.size} 个结果，点开查看详情与目录。"
+                                val rawHits = result.first.distinctBy { it.bookUrl }
+                                hits = if (authorMode) rawHits.filter { it.author.contains(query.trim(), ignoreCase = true) } else rawHits
+                                message = if (hits.isEmpty()) {
+                                    val diagnostic = result.second.take(3).joinToString("；")
+                                    "没有搜索结果。已查询 " + repository.getSources().count { it.enabled } + " 个启用书源，返回 0 本。" +
+                                        if (diagnostic.isNotBlank()) "失败详情：" + diagnostic else "书源请求成功但解析不到书籍，请检查 searchUrl/ruleSearch。"
+                                } else "找到 " + hits.size + " 个结果（" + result.second.size + " 个书源失败），点开查看详情与目录。" +
+                                    if (result.second.isNotEmpty()) "失败书源：" + result.second.take(2).joinToString("；") else ""
                                 loading = false
                                 stage = "results"
                             }
@@ -174,15 +185,19 @@ fun RemoteBookBrowser(repository: BookSourceRepository, onBack: () -> Unit, onSa
                                     loading = true
                                     val more = withContext(Dispatchers.IO) {
                                         val list = mutableListOf<SourceBookHit>()
+                                        val errors = mutableListOf<String>()
                                         repository.getSources().filter { it.enabled }.forEach { src ->
-                                            val json = repository.getRawSource(src.url) ?: return@forEach
-                                            runCatching { engine.search(json, query.trim(), next) }.onSuccess { list += it }
+                                            val json = repository.getRawSource(src.url)
+                                            if (json == null) errors += src.name + ": 读取失败"
+                                            else runCatching { engine.search(json, query.trim(), next) }
+                                                .onSuccess { list += it }
+                                                .onFailure { errors += src.name + ": " + (it.message ?: "规则错误") }
                                         }
-                                        list.distinctBy { it.bookUrl }
+                                        Pair(list.distinctBy { it.bookUrl }, errors)
                                     }
-                                    hits = (hits + (if (authorMode) more.filter { it.author.contains(query.trim(), ignoreCase = true) } else more)).distinctBy { it.bookUrl }
+                                    hits = (hits + (if (authorMode) more.first.filter { it.author.contains(query.trim(), ignoreCase = true) } else more.first)).distinctBy { it.bookUrl }
                                     searchPage = next
-                                    message = if (more.isEmpty()) "第 " + next + " 页没有新结果" else "已加载第 " + next + " 页，新增 " + more.size + " 个结果"
+                                    message = if (more.first.isEmpty()) "第 " + next + " 页没有新结果。 " + more.second.take(2).joinToString("；") else "已加载第 " + next + " 页，新增 " + more.first.size + " 个结果" + if (more.second.isNotEmpty()) "；部分书源失败：" + more.second.take(2).joinToString("；") else """
                                     loading = false
                                 }
                             }, modifier = Modifier.fillMaxWidth(), enabled = !loading) { Text("加载下一页（第 " + (searchPage + 1) + " 页）") }
