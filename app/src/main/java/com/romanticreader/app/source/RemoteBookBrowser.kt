@@ -96,12 +96,11 @@ fun RemoteBookBrowser(repository: BookSourceRepository, onBack: () -> Unit) {
                             Surface(shape = RoundedCornerShape(18.dp), color = SourceWhite, border = androidx.compose.foundation.BorderStroke(1.dp, SourceLine), modifier = Modifier.fillMaxWidth().clickable {
                                 scope.launch {
                                     loading = true
-                                    val loaded = withContext(Dispatchers.IO) {
+                                    val loaded = withContext(Dispatchers.IO) { runCatching {
                                         val src = repository.getRawSource(hit.sourceUrl) ?: error("书源已停用")
                                         engine.loadDetail(src, hit)
-                                    }
-                                    detail = loaded
-                                    stage = "chapters"
+                                    } }
+                                    loaded.onSuccess { detail = it; stage = "chapters" }.onFailure { message = "详情加载失败：${it.message ?: "规则不兼容"}" }
                                     loading = false
                                 }
                             }) {
@@ -124,11 +123,11 @@ fun RemoteBookBrowser(repository: BookSourceRepository, onBack: () -> Unit) {
                             Button(onClick = {
                                 scope.launch {
                                     loading = true
-                                    chapters = withContext(Dispatchers.IO) {
+                                    val result = withContext(Dispatchers.IO) { runCatching {
                                         val src = repository.getRawSource(book.sourceUrl) ?: error("书源已停用")
                                         engine.loadChapters(src, book)
-                                    }
-                                    message = "共 ${chapters.size} 章"
+                                    } }
+                                    result.onSuccess { chapters = it; message = "共 ${it.size} 章" }.onFailure { message = "目录加载失败：${it.message ?: "规则不兼容"}" }
                                     loading = false
                                 }
                             }, enabled = !loading, colors = ButtonDefaults.buttonColors(containerColor = SourceRose)) { Text(if (loading) "加载目录中…" else if (chapters.isEmpty()) "加载目录" else "重新加载目录") }
@@ -140,11 +139,11 @@ fun RemoteBookBrowser(repository: BookSourceRepository, onBack: () -> Unit) {
                                     scope.launch {
                                         loading = true
                                         currentChapter = chapter
-                                        content = withContext(Dispatchers.IO) {
+                                        val result = withContext(Dispatchers.IO) { runCatching {
                                             val src = repository.getRawSource(chapter.sourceUrl) ?: error("书源已停用")
                                             engine.loadContent(src, chapter)
-                                        }
-                                        stage = "content"
+                                        } }
+                                        result.onSuccess { content = it; stage = "content" }.onFailure { message = "正文加载失败：${it.message ?: "规则不兼容"}" }
                                         loading = false
                                     }
                                 }.padding(vertical = 12.dp, horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
