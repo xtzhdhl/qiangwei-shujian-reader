@@ -2,7 +2,7 @@
 
 一款以法式蕾丝、奶油纸感、珍珠与玫瑰色调为灵感的 Android 小说阅读器。原生 Kotlin + Jetpack Compose，不是网页套壳。
 
-**当前版本：** 0.2.0（UI 与本地阅读基础阶段）
+**当前版本：** 0.3.0（远程书源订阅与应用内更新接入阶段）
 
 ## Android 应用身份
 
@@ -26,7 +26,7 @@
 
 ## 当前限制
 
-- 在线书源搜索、网页抓取、书源规则执行、JavaScript 规则兼容尚未实现
+- 在线书源搜索、网页抓取、书源规则执行、JavaScript 规则兼容尚未实现\n- 尚未创建正式 GitHub Release；应用内更新需要发布带 APK 的 Release\n- 签名发布需要先配置 keystore 与 GitHub Secrets，首次稳定版可能需要卸载当前 Debug 版再安装
 - AI 生成的装饰素材目前处于视觉概念阶段，尚未全部打包进应用资源
 - 阅读设置尚未持久化；字体选择与自定义字体导入正在规划
 - 尚未完成真机安装、性能与横屏/平板验收
@@ -41,6 +41,17 @@
 
 ## 构建
 
-GitHub Actions workflow：`.github/workflows/android.yml`
+GitHub Actions workflows：\n- `.github/workflows/android.yml`：Debug APK 自动构建\n- `.github/workflows/release.yml`：签名 Release（tag `v*` 或手动触发）
 
 手动触发或 push 到 main 后构建 Debug APK。构建产物名：`qiangwei-shujian-debug-apk`。
+
+## In-app update / stable signing setup
+
+Create and keep a private Android signing keystore. Configure these repository Actions secrets before running the signed release workflow:
+
+- `SIGNING_KEYSTORE_BASE64`: Base64-encoded keystore file
+- `RELEASE_STORE_PASSWORD`: keystore password
+- `RELEASE_KEY_ALIAS`: key alias
+- `RELEASE_KEY_PASSWORD`: key password
+
+Never commit the keystore or passwords. Once the first signed release is installed, subsequent releases must use this exact keystore.
