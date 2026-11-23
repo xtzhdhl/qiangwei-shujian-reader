@@ -63,6 +63,8 @@ private fun RoseLetterApp(context: Context) {
     var books by remember { mutableStateOf(library.getBooks()) }
     var sourceList by remember { mutableStateOf(sources.getSources()) }
     var subscriptions by remember { mutableStateOf(sources.getSubscriptions()) }
+    var updateStatus by remember { mutableStateOf("尚未检查") }
+    var pendingUpdate by remember { mutableStateOf<com.romanticreader.app.AppUpdateInfo?>(null) }
     val sourceScope = rememberCoroutineScope()
     var activeBook by remember { mutableStateOf<Novel?>(null) }
     var readerText by remember { mutableStateOf("") }
@@ -143,14 +145,14 @@ private fun RoseLetterApp(context: Context) {
                             toast = result.fold({ "刷新完成，更新 $it 个书源" }, { "刷新失败：${it.message ?: "网络错误"}" })
                         }
                     }, onRemoveSubscription = { url -> sources.removeSubscription(url); subscriptions = sources.getSubscriptions() }, onToggle = { s, enabled -> sources.setEnabled(s.url, enabled); sourceList = sources.getSources() }, onDelete = { s -> sources.delete(s.url); sourceList = sources.getSources() }, onBack = { sourcePage = false })
-                    settingsPage -> SettingsScreen(Modifier.padding(padding), books.size, sourceList.size, onSources = { sourcePage = true }, onBack = { settingsPage = false })
+                    settingsPage -> SettingsScreen(Modifier.padding(padding), books.size, sourceList.size, updateStatus, onSources = { sourcePage = true }, onCheckUpdate = { sourceScope.launch { updateStatus = "正在检查更新…"; val result = withContext(Dispatchers.IO) { runCatching { AppUpdater.check("0.3.0") } }; pendingUpdate = result.getOrNull(); updateStatus = result.fold({ if (it == null) "当前已是最新版本" else "发现新版本 ${it.version}" }, { "检查失败：${it.message}" }) } }, onBack = { settingsPage = false })
                     tab == AppTab.Home -> HomeScreen(Modifier.padding(padding), books, onImport = { importTxt.launch(arrayOf("text/plain", "text/*")) }, onOpen = { book -> readerText = library.readText(book); activeBook = book }, onShelf = { tab = AppTab.Shelf }, onSources = { sourcePage = true })
                     tab == AppTab.Shelf -> ShelfScreen(Modifier.padding(padding), books, onImport = { importTxt.launch(arrayOf("text/plain", "text/*")) }, onOpen = { book -> readerText = library.readText(book); activeBook = book }, onDelete = { book -> library.deleteBook(book.id); books = library.getBooks() })
                     tab == AppTab.Discover -> DiscoverScreen(Modifier.padding(padding), onSources = { sourcePage = true }, onImport = { importJson.launch(arrayOf("application/json", "text/*")) })
                     else -> SettingsScreen(Modifier.padding(padding), books.size, sourceList.size, onSources = { sourcePage = true }, onBack = {})
                 }
             }
-            if (toast.isNotBlank()) {
+            if (pendingUpdate != null) {\n                AlertDialog(onDismissRequest = { pendingUpdate = null }, title = { Text("发现更新 · ${pendingUpdate!!.version}") }, text = { Text(pendingUpdate!!.notes.ifBlank { "新版本已发布，建议更新。" }) }, confirmButton = { TextButton(onClick = { val info = pendingUpdate!!; pendingUpdate = null; sourceScope.launch { updateStatus = "正在下载更新…"; val result = withContext(Dispatchers.IO) { runCatching { AppUpdater.downloadAndInstall(context, info) } }; updateStatus = result.fold({ "下载完成，等待安装确认" }, { "更新失败：${it.message}" }) } }) { Text("下载并安装") } }, dismissButton = { TextButton(onClick = { pendingUpdate = null }) { Text("稍后") } })\n            }\n            if (toast.isNotBlank()) {
                 LaunchedEffect(toast) { kotlinx.coroutines.delay(2400); toast = "" }
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.BottomCenter) {
                     Surface(color = RoseInk, shape = RoundedCornerShape(24.dp), modifier = Modifier.padding(bottom = 92.dp)) {
@@ -393,7 +395,7 @@ private fun SourcesScreen(modifier: Modifier, sources: List<com.romanticreader.a
 }
 
 @Composable
-private fun SettingsScreen(modifier: Modifier, bookCount: Int, sourceCount: Int, onSources: () -> Unit, onBack: () -> Unit) {
+private fun SettingsScreen(modifier: Modifier, bookCount: Int, sourceCount: Int, updateStatus: String, onSources: () -> Unit, onCheckUpdate: () -> Unit, onBack: () -> Unit) {
     LazyColumn(modifier.fillMaxSize(), contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         item { RoseHeader("我的", "A PERSONAL READING SPACE") }
         item {
@@ -409,7 +411,7 @@ private fun SettingsScreen(modifier: Modifier, bookCount: Int, sourceCount: Int,
         item { SettingItem(Icons.Rounded.Palette, "阅读主题", "纸白、奶油、粉雾、夜间主题将在阅读设置中扩展", {}) }
         item { SettingItem(Icons.Rounded.TextFields, "字体", "系统字体与自定义字体支持正在扩展", {}) }
         item { SettingItem(Icons.Rounded.Backup, "备份与恢复", "本地书架与书源备份规划中", {}) }
-        item { SettingItem(Icons.Rounded.Info, "关于", "蔷薇书笺 · 0.2.0", {}) }
+        item { SettingItem(Icons.Rounded.SystemUpdate, "检查更新", updateStatus, onCheckUpdate) }\n        item { SettingItem(Icons.Rounded.Info, "关于", "蔷薇书笺 · 0.3.0", {}) }
     }
 }
 
