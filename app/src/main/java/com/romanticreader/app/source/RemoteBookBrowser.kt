@@ -34,7 +34,7 @@ private val SourceWhite = Color(0xFFFFFDFB)
 private val SourceLine = Color(0xFFEED9D4)
 
 @Composable
-fun RemoteBookBrowser(repository: BookSourceRepository, onBack: () -> Unit, onSaved: () -> Unit = {}) {
+fun RemoteBookBrowser(repository: BookSourceRepository, onBack: () -> Unit, onSaved: () -> Unit = {}, initialSavedBook: SavedOnlineBook? = null) {
     val context = LocalContext.current
     val cookieJar = remember { PersistentCookieJar(context) }
     val engine = remember(cookieJar) { LegadoRuleEngine(cookieJar) }
@@ -57,6 +57,17 @@ fun RemoteBookBrowser(repository: BookSourceRepository, onBack: () -> Unit, onSa
     var debugSample by remember { mutableStateOf("<div class=\"book\">示例小说</div>") }
     var debugOutput by remember { mutableStateOf("输入规则与样例文本后点击测试。") }
 
+    LaunchedEffect(initialSavedBook?.bookUrl) {
+        initialSavedBook?.let { saved ->
+            detail = SourceBookDetail(
+                sourceUrl = saved.sourceUrl, name = saved.title, author = saved.author,
+                intro = saved.intro, coverUrl = saved.coverUrl, bookUrl = saved.bookUrl,
+                tocUrl = saved.tocUrl, kind = saved.kind, lastChapter = saved.lastChapter
+            )
+            stage = "chapters"
+            message = "这本书已收藏。点击加载目录后继续阅读。"
+        }
+    }
     fun backStep() {
         when(stage) {
             "content" -> { currentChapter = null; content = ""; stage = "chapters" }
