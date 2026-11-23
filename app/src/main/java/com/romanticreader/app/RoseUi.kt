@@ -31,6 +31,7 @@ import androidx.compose.ui.unit.sp
 import com.romanticreader.app.data.BookSourceRepository
 import com.romanticreader.app.data.Novel
 import com.romanticreader.app.data.NovelRepository
+import com.romanticreader.app.source.RemoteBookBrowser
 import java.io.File
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.Dispatchers
@@ -70,6 +71,7 @@ private fun RoseLetterApp(context: Context) {
     var readerText by remember { mutableStateOf("") }
     var toast by remember { mutableStateOf("") }
     var sourcePage by remember { mutableStateOf(false) }
+    var remoteReaderPage by remember { mutableStateOf(false) }
     var settingsPage by remember { mutableStateOf(false) }
 
     val importTxt = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
@@ -146,9 +148,10 @@ private fun RoseLetterApp(context: Context) {
                         }
                     }, onRemoveSubscription = { url -> sources.removeSubscription(url); subscriptions = sources.getSubscriptions() }, onToggle = { s, enabled -> sources.setEnabled(s.url, enabled); sourceList = sources.getSources() }, onDelete = { s -> sources.delete(s.url); sourceList = sources.getSources() }, onBack = { sourcePage = false })
                     settingsPage -> SettingsScreen(Modifier.padding(padding), books.size, sourceList.size, updateStatus, onSources = { sourcePage = true }, onCheckUpdate = { sourceScope.launch { updateStatus = "正在检查更新…"; val result = withContext(Dispatchers.IO) { runCatching { AppUpdater.check(BuildConfig.VERSION_NAME) } }; pendingUpdate = result.getOrNull(); updateStatus = result.fold({ if (it == null) "当前已是最新版本" else "发现新版本 ${it.version}" }, { "检查失败：${it.message}" }) } }, onBack = { settingsPage = false })
+                    remoteReaderPage -> RemoteBookBrowser(sources, onBack = { remoteReaderPage = false })
                     tab == AppTab.Home -> HomeScreen(Modifier.padding(padding), books, onImport = { importTxt.launch(arrayOf("text/plain", "text/*")) }, onOpen = { book -> readerText = library.readText(book); activeBook = book }, onShelf = { tab = AppTab.Shelf }, onSources = { sourcePage = true })
                     tab == AppTab.Shelf -> ShelfScreen(Modifier.padding(padding), books, onImport = { importTxt.launch(arrayOf("text/plain", "text/*")) }, onOpen = { book -> readerText = library.readText(book); activeBook = book }, onDelete = { book -> library.deleteBook(book.id); books = library.getBooks() })
-                    tab == AppTab.Discover -> DiscoverScreen(Modifier.padding(padding), onSources = { sourcePage = true }, onImport = { importJson.launch(arrayOf("application/json", "text/*")) })
+                    tab == AppTab.Discover -> DiscoverScreen(Modifier.padding(padding), onSources = { sourcePage = true }, onImport = { importJson.launch(arrayOf("application/json", "text/*")) }, onRemoteSearch = { remoteReaderPage = true })
                     else -> SettingsScreen(Modifier.padding(padding), books.size, sourceList.size, updateStatus, onSources = { sourcePage = true }, onCheckUpdate = { sourceScope.launch { updateStatus = "正在检查更新…"; val result = withContext(Dispatchers.IO) { runCatching { AppUpdater.check("0.3.0") } }; pendingUpdate = result.getOrNull(); updateStatus = result.fold({ if (it == null) "当前已是最新版本" else "发现新版本 ${it.version}" }, { "检查失败：${it.message}" }) } }, onBack = {})
                 }
             }
@@ -323,7 +326,7 @@ private fun SectionTitle(title: String, english: String, action: (() -> Unit)? =
 }
 
 @Composable
-private fun DiscoverScreen(modifier: Modifier, onSources: () -> Unit, onImport: () -> Unit) {
+private fun DiscoverScreen(modifier: Modifier, onSources: () -> Unit, onImport: () -> Unit, onRemoteSearch: () -> Unit) {
     LazyColumn(modifier.fillMaxSize(), contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         item { RoseHeader("发现", "DISCOVER YOUR NEXT STORY") }
         item {
