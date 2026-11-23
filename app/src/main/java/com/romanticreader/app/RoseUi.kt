@@ -149,10 +149,28 @@ private fun RoseLetterApp(context: Context) {
                     tab == AppTab.Home -> HomeScreen(Modifier.padding(padding), books, onImport = { importTxt.launch(arrayOf("text/plain", "text/*")) }, onOpen = { book -> readerText = library.readText(book); activeBook = book }, onShelf = { tab = AppTab.Shelf }, onSources = { sourcePage = true })
                     tab == AppTab.Shelf -> ShelfScreen(Modifier.padding(padding), books, onImport = { importTxt.launch(arrayOf("text/plain", "text/*")) }, onOpen = { book -> readerText = library.readText(book); activeBook = book }, onDelete = { book -> library.deleteBook(book.id); books = library.getBooks() })
                     tab == AppTab.Discover -> DiscoverScreen(Modifier.padding(padding), onSources = { sourcePage = true }, onImport = { importJson.launch(arrayOf("application/json", "text/*")) })
-                    else -> SettingsScreen(Modifier.padding(padding), books.size, sourceList.size, onSources = { sourcePage = true }, onBack = {})
+                    else -> SettingsScreen(Modifier.padding(padding), books.size, sourceList.size, updateStatus, onSources = { sourcePage = true }, onCheckUpdate = { sourceScope.launch { updateStatus = "正在检查更新…"; val result = withContext(Dispatchers.IO) { runCatching { AppUpdater.check("0.3.0") } }; pendingUpdate = result.getOrNull(); updateStatus = result.fold({ if (it == null) "当前已是最新版本" else "发现新版本 ${it.version}" }, { "检查失败：${it.message}" }) } }, onBack = {})
                 }
             }
-            if (pendingUpdate != null) {\n                AlertDialog(onDismissRequest = { pendingUpdate = null }, title = { Text("发现更新 · ${pendingUpdate!!.version}") }, text = { Text(pendingUpdate!!.notes.ifBlank { "新版本已发布，建议更新。" }) }, confirmButton = { TextButton(onClick = { val info = pendingUpdate!!; pendingUpdate = null; sourceScope.launch { updateStatus = "正在下载更新…"; val result = withContext(Dispatchers.IO) { runCatching { AppUpdater.downloadAndInstall(context, info) } }; updateStatus = result.fold({ "下载完成，等待安装确认" }, { "更新失败：${it.message}" }) } }) { Text("下载并安装") } }, dismissButton = { TextButton(onClick = { pendingUpdate = null }) { Text("稍后") } })\n            }\n            if (toast.isNotBlank()) {
+            if (pendingUpdate != null) {
+                AlertDialog(
+                    onDismissRequest = { pendingUpdate = null },
+                    title = { Text("发现更新 · ${pendingUpdate!!.version}") },
+                    text = { Text(pendingUpdate!!.notes.ifBlank { "新版本已发布，建议更新。" }) },
+                    confirmButton = {
+                        TextButton(onClick = {
+                            val info = pendingUpdate!!
+                            pendingUpdate = null
+                            sourceScope.launch {
+                                updateStatus = "正在下载更新…"
+                                val result = withContext(Dispatchers.IO) { runCatching { AppUpdater.downloadAndInstall(context, info) } }
+                                updateStatus = result.fold({ "下载完成，等待安装确认" }, { "更新失败：${it.message}" })
+                            }
+                        }) { Text("下载并安装") }
+                    },
+                    dismissButton = { TextButton(onClick = { pendingUpdate = null }) { Text("稍后") } }
+                )
+            }\n            if (toast.isNotBlank()) {
                 LaunchedEffect(toast) { kotlinx.coroutines.delay(2400); toast = "" }
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.BottomCenter) {
                     Surface(color = RoseInk, shape = RoundedCornerShape(24.dp), modifier = Modifier.padding(bottom = 92.dp)) {
