@@ -10,7 +10,6 @@
 - 应用名称：蔷薇书笺
 - minSdk：26
 - targetSdk：35
-- 首发签名证书必须妥善备份；后续正式升级必须使用相同 applicationId 与签名证书。
 
 ## 当前实现
 
@@ -20,38 +19,40 @@
 - 常见文本编码尝试：UTF-8、GB18030、Big5、UTF-16
 - 阅读正文滚动、章节标题识别、字号与行距调节、日夜模式
 - 阅读位置按段落索引保存
-- Legado 常见 JSON 书源导入（数组或单源对象）、去重、启用/停用和删除
-- 书源原始 JSON 数据保留在本地，便于后续规则引擎接入
-- GitHub Actions 自动构建 Debug APK 并上传 Artifact
+- Legado JSON 书源导入（数组、单源对象及常见包装数组），去重、启用/停用和删除
+- HTTPS 远程 JSON 书源订阅、刷新与订阅管理；刷新保留本地启用状态
+- GitHub Releases 应用内检查更新、APK 下载、SHA-256 校验（Release asset digest 提供时）和系统安装引导
+- Debug APK 自动构建上传
 
 ## 当前限制
 
-- 在线书源搜索、网页抓取、书源规则执行、JavaScript 规则兼容尚未实现\n- 尚未创建正式 GitHub Release；应用内更新需要发布带 APK 的 Release\n- 签名发布需要先配置 keystore 与 GitHub Secrets，首次稳定版可能需要卸载当前 Debug 版再安装
-- AI 生成的装饰素材目前处于视觉概念阶段，尚未全部打包进应用资源
+- 在线书源搜索、网页抓取、书源规则执行、JavaScript 规则兼容尚未实现
+- 尚未创建正式 GitHub Release；应用内更新需要发布带 APK 的 Release
+- 签名发布需要先配置 keystore 与 GitHub Actions Secrets；首次稳定版可能需要卸载当前 Debug 版再安装
+- AI 生成的装饰素材目前尚未全部打包进应用资源
 - 阅读设置尚未持久化；字体选择与自定义字体导入正在规划
 - 尚未完成真机安装、性能与横屏/平板验收
 
-## 计划路线
+## 路线
 
-1. **视觉与阅读体验**：AI 生成并整合封面、蕾丝装饰、空状态插画；主题切换与字体管理。
-2. **阅读核心**：章节识别、目录、书签、阅读历史、分页模式、阅读设置持久化。
-3. **书源能力**：Legado JSON 规则模型、网络请求、搜索、书籍详情、目录、正文解析；逐步支持常见规则子集。
-4. **个人数据**：备份与恢复、隐私与本地存储安全。
-5. **发布验收**：真机与平板适配、稳定构建、版本升级机制。
+1. 视觉资源：生成并整合封面、蕾丝装饰、空状态插画与原创图标。
+2. 阅读核心：章节目录、书签、阅读历史、分页模式、设置持久化、字体库。
+3. 书源能力：规则引擎、搜索、详情、目录、正文解析，逐步兼容常见 Legado 规则。
+4. 个人数据：备份恢复、隐私与本地数据安全。
+5. 真机与发布验收。
 
-## 构建
+## GitHub Actions
 
-GitHub Actions workflows：\n- `.github/workflows/android.yml`：Debug APK 自动构建\n- `.github/workflows/release.yml`：签名 Release（tag `v*` 或手动触发）
+- `.github/workflows/android.yml`：Debug APK 自动构建
+- `.github/workflows/release.yml`：签名 Release（tag `v*` 或手动触发）
 
-手动触发或 push 到 main 后构建 Debug APK。构建产物名：`qiangwei-shujian-debug-apk`。
+## 应用内更新的签名准备
 
-## In-app update / stable signing setup
+在 GitHub 仓库 Settings → Secrets and variables → Actions 中配置：
 
-Create and keep a private Android signing keystore. Configure these repository Actions secrets before running the signed release workflow:
+- `SIGNING_KEYSTORE_BASE64`：Keystore 文件的 Base64
+- `RELEASE_STORE_PASSWORD`：Keystore 密码
+- `RELEASE_KEY_ALIAS`：密钥别名
+- `RELEASE_KEY_PASSWORD`：密钥密码
 
-- `SIGNING_KEYSTORE_BASE64`: Base64-encoded keystore file
-- `RELEASE_STORE_PASSWORD`: keystore password
-- `RELEASE_KEY_ALIAS`: key alias
-- `RELEASE_KEY_PASSWORD`: key password
-
-Never commit the keystore or passwords. Once the first signed release is installed, subsequent releases must use this exact keystore.
+不要将 keystore 或密码提交到仓库。第一份稳定签名 APK 安装后，未来更新必须一直使用同一个 keystore。
