@@ -190,6 +190,7 @@ class LegadoRuleEngine(private val cookieJar: PersistentCookieJar? = null) {
             setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/122 Mobile Safari/537.36")
             setRequestProperty("Accept", "text/html,application/json,application/xhtml+xml,*/*")
             setRequestProperty("Accept-Language", "zh-CN,zh;q=0.9,en;q=0.7")
+            setRequestProperty("Accept-Encoding", "gzip")
             spec.headers.forEach { (key, value) -> setRequestProperty(key, value) }
             cookieJar?.cookieHeader(resolvedRequestUrl)?.takeIf { it.isNotBlank() }?.let { setRequestProperty("Cookie", it) }
         }
@@ -206,7 +207,9 @@ class LegadoRuleEngine(private val cookieJar: PersistentCookieJar? = null) {
             if (status !in 200..299) error("网站返回 HTTP $status")
             val length = connection.contentLengthLong
             if (length > 12L * 1024 * 1024) error("页面超过 12 MB，已停止读取")
-            val bytes = connection.inputStream.use { input ->
+            val stream = connection.inputStream
+            val decoded = if (connection.contentEncoding.equals("gzip", true)) java.util.zip.GZIPInputStream(stream) else stream
+            val bytes = decoded.use { input ->
                 val out = java.io.ByteArrayOutputStream()
                 val buffer = ByteArray(8192)
                 var total = 0
