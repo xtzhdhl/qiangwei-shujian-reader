@@ -81,6 +81,7 @@ class PersistentCookieJar(context: Context) {
 
     @Synchronized
     fun importCookieManagerCookies(url: String, cookieHeader: String) {
+        if (cookieHeader.isBlank()) return
         setManualCookieHeader(url, cookieHeader)
     }
 
