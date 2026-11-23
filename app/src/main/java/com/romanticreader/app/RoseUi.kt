@@ -124,7 +124,7 @@ private fun RoseLetterApp(context: Context) {
                 when {
                     sourcePage -> SourcesScreen(Modifier.padding(padding), sourceList, onImport = { importJson.launch(arrayOf("application/json", "text/*")) }, onToggle = { s, enabled -> sources.setEnabled(s.url, enabled); sourceList = sources.getSources() }, onDelete = { s -> sources.delete(s.url); sourceList = sources.getSources() }, onBack = { sourcePage = false })
                     settingsPage -> SettingsScreen(Modifier.padding(padding), books.size, sourceList.size, onSources = { sourcePage = true }, onBack = { settingsPage = false })
-                    tab == AppTab.Home -> HomeScreen(Modifier.padding(padding), books, onImport = { importTxt.launch(arrayOf("text/plain", "text/*")) }, onOpen = { book -> readerText = library.readText(book); activeBook = book }, onShelf = { tab = AppTab.Shelf })
+                    tab == AppTab.Home -> HomeScreen(Modifier.padding(padding), books, onImport = { importTxt.launch(arrayOf("text/plain", "text/*")) }, onOpen = { book -> readerText = library.readText(book); activeBook = book }, onShelf = { tab = AppTab.Shelf }, onSources = { sourcePage = true })
                     tab == AppTab.Shelf -> ShelfScreen(Modifier.padding(padding), books, onImport = { importTxt.launch(arrayOf("text/plain", "text/*")) }, onOpen = { book -> readerText = library.readText(book); activeBook = book }, onDelete = { book -> library.deleteBook(book.id); books = library.getBooks() })
                     tab == AppTab.Discover -> DiscoverScreen(Modifier.padding(padding), onSources = { sourcePage = true }, onImport = { importJson.launch(arrayOf("application/json", "text/*")) })
                     else -> SettingsScreen(Modifier.padding(padding), books.size, sourceList.size, onSources = { sourcePage = true }, onBack = {})
@@ -161,7 +161,7 @@ private fun RoseCard(modifier: Modifier = Modifier, content: @Composable ColumnS
 }
 
 @Composable
-private fun HomeScreen(modifier: Modifier, books: List<Novel>, onImport: () -> Unit, onOpen: (Novel) -> Unit, onShelf: () -> Unit) {
+private fun HomeScreen(modifier: Modifier, books: List<Novel>, onImport: () -> Unit, onOpen: (Novel) -> Unit, onShelf: () -> Unit, onSources: () -> Unit) {
     LazyColumn(modifier.fillMaxSize(), contentPadding = PaddingValues(horizontal = 20.dp, vertical = 22.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
         item {
             RoseHeader("拾阅 ✧", "在文字里，遇见更大的世界。", trailing = {
@@ -392,7 +392,9 @@ private fun RoseReader(book: Novel, text: String, initialParagraph: Int, onBack:
     val paragraphs = remember(text) { formatNovelText(text) }
     val background = if (dark) Color(0xFF282426) else Color(0xFFF8F2E9)
     val foreground = if (dark) Color(0xFFE8DCD2) else Color(0xFF493C3B)
-    val safePage = page.coerceIn(0, (paragraphs.size - 1).coerceAtLeast(0))
+    val listState = rememberLazyListState(initialFirstVisibleItemIndex = initialParagraph.coerceIn(0, (paragraphs.size - 1).coerceAtLeast(0)))
+    val safePage = listState.firstVisibleItemIndex.coerceIn(0, (paragraphs.size - 1).coerceAtLeast(0))
+    LaunchedEffect(listState.firstVisibleItemIndex) { onProgress(listState.firstVisibleItemIndex) }
 
     Column(Modifier.fillMaxSize().background(background).statusBarsPadding()) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
