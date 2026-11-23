@@ -236,26 +236,6 @@ private fun HomeScreen(modifier: Modifier, books: List<Novel>, onImport: () -> U
             }
         }
         item { SectionTitle("继续阅读", "CONTINUE", onShelf) }
-        if (onlineBooks.isNotEmpty()) {
-            item { SectionTitle("在线收藏", "SAVED FROM SOURCES") }
-            items(onlineBooks, key = { "online_" + it.sourceUrl + it.bookUrl }) { book ->
-                RoseCard(Modifier.fillMaxWidth()) {
-                    Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Box(Modifier.size(58.dp, 78.dp).clip(RoundedCornerShape(12.dp)).background(Brush.linearGradient(listOf(Color(0xFFEED7DF), Color(0xFFF8EDE5)))), contentAlignment = Alignment.Center) {
-                            Icon(Icons.Rounded.MenuBook, null, tint = RoseDeep.copy(alpha = .65f), modifier = Modifier.size(30.dp))
-                        }
-                        Spacer(Modifier.width(12.dp))
-                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            Text(book.title, fontSize = 15.sp, color = RoseInk, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                            Text(book.author.ifBlank { "作者未知" }, fontSize = 11.sp, color = RoseMuted)
-                            Text("在线书源 · " + book.kind, fontSize = 10.sp, color = RoseDeep)
-                            if (book.lastChapter.isNotBlank()) Text("最新：" + book.lastChapter, fontSize = 10.sp, color = RoseMuted, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        }
-                        IconButton(onClick = { onRemoveOnline(book) }) { Icon(Icons.Rounded.DeleteOutline, "取消收藏", tint = RoseMuted) }
-                    }
-                }
-            }
-        }
         if (books.isEmpty() && onlineBooks.isEmpty()) item { EmptyBooksCard(onImport) }
         else items(books.take(3), key = { it.id }) { book ->
             BookRow(book, onClick = { onOpen(book) }, trailing = {
