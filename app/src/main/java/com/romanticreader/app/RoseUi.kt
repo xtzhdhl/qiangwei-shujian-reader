@@ -387,11 +387,11 @@ private fun RoseReader(book: Novel, text: String, initialParagraph: Int, onBack:
     var lineSpace by remember { mutableFloatStateOf(1.8f) }
     var dark by remember { mutableStateOf(false) }
     var controls by remember { mutableStateOf(false) }
-    var page by remember { mutableIntStateOf(initialParagraph.coerceAtLeast(0)) }
     val paragraphs = remember(text) { formatNovelText(text) }
     val background = if (dark) Color(0xFF282426) else Color(0xFFF8F2E9)
     val foreground = if (dark) Color(0xFFE8DCD2) else Color(0xFF493C3B)
-    val listState = rememberLazyListState(initialFirstVisibleItemIndex = initialParagraph.coerceIn(0, (paragraphs.size - 1).coerceAtLeast(0)))\n    val scope = rememberCoroutineScope()
+    val listState = rememberLazyListState(initialFirstVisibleItemIndex = initialParagraph.coerceIn(0, (paragraphs.size - 1).coerceAtLeast(0)))
+    val scope = rememberCoroutineScope()
     val safePage = listState.firstVisibleItemIndex.coerceIn(0, (paragraphs.size - 1).coerceAtLeast(0))
     LaunchedEffect(listState.firstVisibleItemIndex) { onProgress(listState.firstVisibleItemIndex) }
 
