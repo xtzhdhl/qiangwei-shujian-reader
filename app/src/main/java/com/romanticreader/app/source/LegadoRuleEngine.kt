@@ -280,7 +280,7 @@ class LegadoRuleEngine {
         }
         if (trimmed.startsWith("@xpath:", true) || trimmed.startsWith("//") || trimmed.startsWith("(//")) {
             val xpath = if (trimmed.startsWith("@xpath:", true)) trimmed.substringAfter(":") else trimmed
-            return runCatching { document.selectXpath<Node>(xpath).toList() }.getOrDefault(emptyList())
+            return runCatching { document.selectXpath<Element>(xpath).toList() }.getOrDefault(emptyList())
         }
         return defaultSelect(document, trimmed)
     }
@@ -349,7 +349,7 @@ class LegadoRuleEngine {
             baseRule.startsWith("@xpath:", true) || baseRule.startsWith("//") || baseRule.startsWith("(//") -> {
                 val xpath = if (baseRule.startsWith("@xpath:", true)) baseRule.substringAfter(":") else baseRule
                 val doc = (context as? Document) ?: (context as? Element)?.ownerDocument() ?: Jsoup.parse(input, baseUrl)
-                runCatching { doc.selectXpath<Node>(xpath).toList() }.getOrDefault(emptyList())
+                runCatching { doc.selectXpath<Element>(xpath).toList() }.getOrDefault(emptyList())
             }
             else -> {
                 if (context is Element) extractDefaultFromContext(context, baseRule)
