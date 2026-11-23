@@ -55,7 +55,7 @@ class LegadoRuleEngine {
     private data class PageData(val text: String, val finalUrl: String)
 
     fun search(source: JSONObject, keyword: String, page: Int = 1): List<SourceBookHit> {
-        val searchRules = source.optJSONObject("ruleSearch") ?: JSONObject()
+        val searchRules = ruleObject(source, "ruleSearch")
         val searchTemplate = source.optString("searchUrl").ifBlank { searchRules.optString("url") }
         require(searchTemplate.isNotBlank()) { "该书源没有配置 searchUrl" }
         val pageData = request(source, searchTemplate, mapOf("key" to keyword, "page" to page.toString()))
@@ -81,7 +81,7 @@ class LegadoRuleEngine {
 
     fun loadDetail(source: JSONObject, hit: SourceBookHit): SourceBookDetail {
         val page = request(source, hit.bookUrl, emptyMap())
-        val rules = source.optJSONObject("ruleBookInfo") ?: JSONObject()
+        val rules = ruleObject(source, "ruleBookInfo")
         val ruleTocUrl = value(page.text, rules.optString("tocUrl"), null, page.finalUrl)
         return SourceBookDetail(
             sourceUrl = hit.sourceUrl,
@@ -97,7 +97,7 @@ class LegadoRuleEngine {
     }
 
     fun loadChapters(source: JSONObject, detail: SourceBookDetail, maxPages: Int = 12): List<SourceChapter> {
-        val rules = source.optJSONObject("ruleToc") ?: JSONObject()
+        val rules = ruleObject(source, "ruleToc")
         val listRuleOriginal = rules.optString("chapterList")
         require(listRuleOriginal.isNotBlank()) { "该书源没有配置 ruleToc.chapterList" }
         val reverse = listRuleOriginal.startsWith("-")
@@ -133,7 +133,7 @@ class LegadoRuleEngine {
     }
 
     fun loadContent(source: JSONObject, chapter: SourceChapter, maxPages: Int = 10): String {
-        val rules = source.optJSONObject("ruleContent") ?: JSONObject()
+        val rules = ruleObject(source, "ruleContent")
         val contentRule = rules.optString("content")
         require(contentRule.isNotBlank()) { "该书源没有配置 ruleContent.content" }
         val visited = mutableSetOf<String>()
@@ -331,7 +331,7 @@ class LegadoRuleEngine {
         val selected: List<Any> = when {
             r.startsWith("@text:") -> listOf(r.removePrefix("@text:"))
             r.startsWith("@json:", true) || r.startsWith("$.") || r.startsWith("$[") -> {
-                val json = parseJsonIfPossible(input) ?: (context as? JSONObject) ?: return ""
+                val json = (context as? JSONObject) ?: (context as? JSONArray) ?: parseJsonIfPossible(input) ?: return ""
                 jsonPath(json, r.removePrefix("@json:"))
             }
             r.startsWith("@css:", true) -> {
@@ -401,6 +401,12 @@ class LegadoRuleEngine {
             null -> ""
             else -> node.toString()
         }
+    }
+
+    private fun ruleObject(source: JSONObject, key: String): JSONObject {
+        source.optJSONObject(key)?.let { return it }
+        val raw = source.optString(key).trim()
+        return runCatching { JSONObject(raw) }.getOrElse { JSONObject() }
     }
 
     private fun parseJsonIfPossible(input: String): Any? {
