@@ -46,7 +46,7 @@ data class SourceChapter(
     val isVip: Boolean = false
 )
 
-class LegadoRuleEngine {
+class LegadoRuleEngine(private val cookieJar: PersistentCookieJar? = null) {
     private data class RequestSpec(
         val url: String,
         val method: String = "GET",
@@ -172,6 +172,7 @@ class LegadoRuleEngine {
             setRequestProperty("Accept", "text/html,application/json,application/xhtml+xml,*/*")
             setRequestProperty("Accept-Language", "zh-CN,zh;q=0.9,en;q=0.7")
             spec.headers.forEach { (key, value) -> setRequestProperty(key, value) }
+            cookieJar?.cookieHeader(resolvedRequestUrl)?.takeIf { it.isNotBlank() }?.let { setRequestProperty("Cookie", it) }
         }
         try {
             if (spec.method == "POST") {
@@ -182,6 +183,7 @@ class LegadoRuleEngine {
                 connection.outputStream.use { it.write(spec.body.toByteArray(Charsets.UTF_8)) }
             }
             val status = connection.responseCode
+            cookieJar?.saveResponse(connection.url.toString(), connection.headerFields.filterKeys { it.equals("Set-Cookie", true) }.values.flatten())
             if (status !in 200..299) error("网站返回 HTTP $status")
             val length = connection.contentLengthLong
             if (length > 12L * 1024 * 1024) error("页面超过 12 MB，已停止读取")
